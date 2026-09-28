@@ -17,6 +17,8 @@ jobs:
         run: npm run build
       - name: Prepare Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: ''
       - name: Install Android packages
         run: sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0'
       - name: Sync Android project
