@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { resumeAudio } from "@/game/audio";
+import { TipSupport } from "./tip-support";
 import { GANG_IDS, PRODUCTS } from "@/game/content";
 import {
   adjacentToPlayer,
@@ -213,6 +214,7 @@ function StartScreen() {
               {saveMeta.phase === "won" ? " · crowned" : saveMeta.phase === "lost" ? " · finished" : ""}
             </button>
           ) : null}
+          <div className="mt-3 text-center"><TipSupport /></div>
         </form>
       </div>
     </main>
@@ -265,6 +267,7 @@ function PlayScreen() {
               <p className="font-display text-2xl leading-none">WK {String(game.week).padStart(2, "0")}</p>
               <p className="text-xs tracking-widest text-mute">{game.difficulty === "war" ? "WAR" : "STREET"}</p>
             </div>
+            <TipSupport />
             <button type="button" aria-label={muted ? "Unmute" : "Mute"} onClick={toggleMute} className={`${btnGhost} px-3`}>
               {muted ? <VolumeX className="size-5" /> : <Volume2 className="size-5" />}
             </button>
