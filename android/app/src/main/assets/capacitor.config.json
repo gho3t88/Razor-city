@@ -1,0 +1,9 @@
+{
+	"appId": "com.razorcity.game",
+	"appName": "Razor City",
+	"webDir": "dist",
+	"android": {
+		"backgroundColor": "#0c0e0b",
+		"allowMixedContent": false
+	}
+}

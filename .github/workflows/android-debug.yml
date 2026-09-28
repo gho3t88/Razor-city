@@ -1,0 +1,30 @@
+name: Build Razor City Android Debug APK
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Build web game
+        run: npm run build
+      - name: Prepare Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install Android packages
+        run: sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0'
+      - name: Sync Android project
+        run: npx cap sync android
+      - name: Build test APK
+        working-directory: android
+        run: ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Razor-City-debug-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk

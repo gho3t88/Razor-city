@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #0c0e0b;
+  --color-panel: #151813;
+  --color-panel-2: #22281d;
+  --color-line: #3a4332;
+  --color-paper: #f3ead6;
+  --color-mute: #c8bfab;
+  --color-gold: #e0b15a;
+  --color-blood: #ff8f78;
+  --font-display: "Oswald", ui-sans-serif, sans-serif;
+  --font-sans: "Outfit", ui-sans-serif, sans-serif;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    background: var(--color-ink);
+  }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background: var(--color-ink);
+    color: var(--color-paper);
+    font-family: var(--font-sans);
+    line-height: 1.45;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
+.mark-player { background: var(--color-gold); }
+.mark-neutral { background: var(--color-line); }
+.mark-vultures { background: var(--color-blood); }
+.mark-lanterns { background: var(--color-paper); }
+.mark-saints { background: var(--color-mute); }
+.mark-cobras {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--color-gold) 0 3px,
+    var(--color-ink) 3px 6px
+  );
+}
+
+.tile-player { box-shadow: inset 3px 0 0 var(--color-gold); }
+.tile-neutral { box-shadow: inset 3px 0 0 var(--color-line); }
+.tile-vultures { box-shadow: inset 3px 0 0 var(--color-blood); }
+.tile-lanterns { box-shadow: inset 3px 0 0 var(--color-paper); }
+.tile-saints { box-shadow: inset 3px 0 0 var(--color-mute); }
+.tile-cobras { box-shadow: inset 3px 0 0 var(--color-gold); }
+
+.tile-on {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 1px;
+}
+
+@keyframes razor-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-5px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(2px); }
+}
+
+.shake { animation: razor-shake 0.32s linear; }
+
+@keyframes heat-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.heat-hot { animation: heat-pulse 1.1s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .shake, .heat-hot { animation: none; }
+}

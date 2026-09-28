@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Razor City</string>
+    <string name="title_activity_main">Razor City</string>
+    <string name="package_name">com.razorcity.game</string>
+    <string name="custom_url_scheme">com.razorcity.game</string>
+</resources>
