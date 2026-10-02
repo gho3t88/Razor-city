@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { resumeAudio } from "@/game/audio";
+import { showInterstitial, showRewarded } from "@/lib/ads";
 import { TipSupport } from "./tip-support";
 import { GANG_IDS, PRODUCTS } from "@/game/content";
 import {
@@ -770,9 +771,21 @@ function Sheet({ title, onClose, children }: { title: string; onClose: () => voi
 function MarketSheet({ game }: { game: GameState }) {
   const commit = useRazor((s) => s.commit);
   const setModal = useRazor((s) => s.setModal);
+  const grantAdReward = useRazor((s) => s.grantAdReward);
+  const [adBusy, setAdBusy] = useState(false);
+  const claimSponsorBonus = async () => {
+    if (adBusy) return;
+    setAdBusy(true);
+    const earned = await showRewarded();
+    if (earned) grantAdReward();
+    setAdBusy(false);
+  };
   return (
     <Sheet title="WHOLESALE" onClose={() => setModal("none")}>
       <p className="mb-3 text-sm text-mute">Buying is free of moves. Prices drift every week. You hold the stash, corners spend it.</p>
+      <button type="button" disabled={adBusy} className={`${btnGold} mb-3 w-full`} onClick={claimSponsorBonus}>
+        {adBusy ? "Loading sponsor…" : "Watch ad · get $1,000 bonus"}
+      </button>
       <ul className="space-y-3">
         {(Object.keys(PRODUCTS) as ProductId[]).map((id) => {
           const p = PRODUCTS[id];
@@ -924,7 +937,10 @@ function SummarySheet() {
           <p className="mt-3 text-sm text-mute">Alive crews: {aliveGangs(game).length}. Your blocks: {game.districts.filter((d) => d.owner === "player").length}.</p>
         </div>
         <div className="border-t border-line p-3">
-          <button type="button" className={`${btnGold} w-full font-display text-lg tracking-wide`} onClick={nextWeek}>
+          <button type="button" className={`${btnGold} w-full font-display text-lg tracking-wide`} onClick={async () => {
+            if (game.week > 1 && game.week % 3 === 0) await showInterstitial();
+            nextWeek();
+          }}>
             Begin week {game.week}
           </button>
         </div>
