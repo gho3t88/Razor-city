@@ -43,6 +43,7 @@ interface RazorStore {
   closeWeek: () => void;
   choose: (optionId: string) => void;
   nextWeek: () => void;
+  grantAdReward: () => boolean;
   setModal: (modal: "none" | "market" | "ledger") => void;
   clearToast: () => void;
   toggleMute: () => void;
@@ -222,6 +223,24 @@ export const useRazor = create<RazorStore>((set, get) => ({
     const game = get().game;
     if (!game) return;
     get().commit(continueReport(game));
+  },
+
+  grantAdReward: () => {
+    const game = get().game;
+    if (!game || game.phase !== "play") return false;
+    const key = `razor-city-ad-reward-week-${game.week}`;
+    try {
+      if (localStorage.getItem(key) === "1") {
+        set({ toast: "Ad bonus already claimed this week." });
+        return false;
+      }
+      localStorage.setItem(key, "1");
+    } catch { /* continue without persistence guard */ }
+    const rewarded = { ...game, cash: game.cash + 1000 };
+    persist(rewarded);
+    set({ game: rewarded, saveMeta: metaOf(rewarded), toast: "$1,000 sponsor bonus added." });
+    playSound("tick");
+    return true;
   },
 
   setModal: (modal) => set({ modal }),
