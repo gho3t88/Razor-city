@@ -22,8 +22,12 @@ public class AdsPlugin extends Plugin {
     private static final String TEST_INTERSTITIAL = "ca-app-pub-3940256099942544/1033173712";
     private static final String TEST_REWARDED = "ca-app-pub-3940256099942544/5224354917";
 
-    private String interstitialId() { return BuildConfig.DEBUG ? TEST_INTERSTITIAL : PROD_INTERSTITIAL; }
-    private String rewardedId() { return BuildConfig.DEBUG ? TEST_REWARDED : PROD_REWARDED; }
+    private String interstitialId() { return isDebugBuild() ? TEST_INTERSTITIAL : PROD_INTERSTITIAL; }
+    private String rewardedId() { return isDebugBuild() ? TEST_REWARDED : PROD_REWARDED; }
+
+    private boolean isDebugBuild() {
+        return (getContext().getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+    }
 
     @PluginMethod
     public void showInterstitial(PluginCall call) {
