@@ -31,7 +31,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.android/debug.keystore
-          key: razor-city-debug-keystore-v1
+          key: razor-city-debug-keystore-v2
+      - name: Ensure persistent debug signing key
+        run: |
+          mkdir -p "$HOME/.android"
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            keytool -genkeypair -v               -keystore "$HOME/.android/debug.keystore"               -storepass android               -alias androiddebugkey               -keypass android               -dname "CN=Android Debug,O=Android,C=US"               -keyalg RSA               -keysize 2048               -validity 10000
+          fi
+          keytool -list -v             -keystore "$HOME/.android/debug.keystore"             -storepass android             -alias androiddebugkey | grep "SHA256:"
       - name: Build test APK
         working-directory: android
         run: ./gradlew assembleDebug
