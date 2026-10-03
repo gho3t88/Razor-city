@@ -3,12 +3,21 @@ apply plugin: 'com.android.application'
 android {
     namespace = "com.hollowdocksgames.razorcity"
     compileSdk = rootProject.ext.compileSdkVersion
+    def releaseKeystorePath = System.getenv("RAZOR_UPLOAD_KEYSTORE_PATH")
     signingConfigs {
         debug {
             storeFile file(System.getProperty("user.home") + "/.android/debug.keystore")
             storePassword "android"
             keyAlias "androiddebugkey"
             keyPassword "android"
+        }
+        if (releaseKeystorePath) {
+            release {
+                storeFile file(releaseKeystorePath)
+                storePassword System.getenv("RAZOR_UPLOAD_PASSWORD")
+                keyAlias "razorcityupload"
+                keyPassword System.getenv("RAZOR_UPLOAD_PASSWORD")
+            }
         }
     }
     defaultConfig {
@@ -29,6 +38,9 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
+            if (releaseKeystorePath) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
