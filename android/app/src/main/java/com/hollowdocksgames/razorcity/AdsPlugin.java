@@ -14,6 +14,8 @@ import com.google.android.gms.ads.interstitial.InterstitialAd;
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
 import com.google.android.gms.ads.rewarded.RewardedAd;
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback;
+import com.google.android.ump.ConsentInformation;
+import com.google.android.ump.UserMessagingPlatform;
 
 @CapacitorPlugin(name = "RazorAds")
 public class AdsPlugin extends Plugin {
@@ -29,8 +31,14 @@ public class AdsPlugin extends Plugin {
         return (getContext().getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0;
     }
 
+    private boolean canRequestAds() {
+        ConsentInformation consentInformation = UserMessagingPlatform.getConsentInformation(getContext());
+        return consentInformation.canRequestAds();
+    }
+
     @PluginMethod
     public void showInterstitial(PluginCall call) {
+        if (!canRequestAds()) { call.resolve(); return; }
         getActivity().runOnUiThread(() ->
             InterstitialAd.load(getContext(), interstitialId(), new AdRequest.Builder().build(),
                 new InterstitialAdLoadCallback() {
@@ -48,6 +56,7 @@ public class AdsPlugin extends Plugin {
 
     @PluginMethod
     public void showRewarded(PluginCall call) {
+        if (!canRequestAds()) { call.resolve(new JSObject().put("earned", false)); return; }
         getActivity().runOnUiThread(() ->
             RewardedAd.load(getContext(), rewardedId(), new AdRequest.Builder().build(),
                 new RewardedAdLoadCallback() {
@@ -67,6 +76,12 @@ public class AdsPlugin extends Plugin {
                         call.resolve(new JSObject().put("earned", false));
                     }
                 })
+        );
+    }
+    @PluginMethod
+    public void showPrivacyOptions(PluginCall call) {
+        getActivity().runOnUiThread(() ->
+            UserMessagingPlatform.showPrivacyOptionsForm(getActivity(), formError -> call.resolve())
         );
     }
 }
