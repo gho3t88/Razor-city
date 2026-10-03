@@ -80,3 +80,8 @@
 @media (prefers-reduced-motion: reduce) {
   .shake, .heat-hot { animation: none; }
 }
+
+
+.safe-top {
+  padding-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+}
