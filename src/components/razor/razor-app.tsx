@@ -13,7 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { resumeAudio } from "@/game/audio";
-import { showInterstitial, showRewarded } from "@/lib/ads";
+import { showInterstitial, showPrivacyOptions, showRewarded } from "@/lib/ads";
 import { TipSupport } from "./tip-support";
 import { GANG_IDS, PRODUCTS } from "@/game/content";
 import {
@@ -216,6 +216,9 @@ function StartScreen() {
             </button>
           ) : null}
           <div className="mt-3 text-center"><TipSupport /></div>
+          <button type="button" onClick={() => { void showPrivacyOptions(); }} className="mt-2 w-full text-xs text-mute underline underline-offset-4">
+            Privacy choices
+          </button>
         </form>
       </div>
     </main>
