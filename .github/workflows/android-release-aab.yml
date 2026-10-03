@@ -1,4 +1,5 @@
 name: Build Razor City Play Internal Test AAB
+# Internal testing bundles use Google test ads.
 
 on:
   workflow_dispatch:
