@@ -161,10 +161,17 @@ function StartScreen() {
         >
           <div className="mb-4 flex items-center gap-3">
             <img src="/art/reyes.jpg" alt="" className="size-14 rounded-md object-cover" />
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="font-display text-xl tracking-wide text-paper">OPEN THE BOOKS</p>
               <p className="text-sm text-mute">Name the boss. Name the crew.</p>
             </div>
+            <button
+              type="button"
+              onClick={() => { void showPrivacyOptions(); }}
+              className="shrink-0 rounded-md border border-line px-2 py-2 text-xs text-mute"
+            >
+              Privacy
+            </button>
           </div>
           <label className="mb-3 block text-sm text-mute">
             Your name
@@ -216,9 +223,6 @@ function StartScreen() {
             </button>
           ) : null}
           <div className="mt-3 text-center"><TipSupport /></div>
-          <button type="button" onClick={() => { void showPrivacyOptions(); }} className="mt-2 w-full text-xs text-mute underline underline-offset-4">
-            Privacy choices
-          </button>
         </form>
       </div>
     </main>
