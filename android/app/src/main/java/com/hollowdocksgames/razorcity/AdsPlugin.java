@@ -27,8 +27,8 @@ public class AdsPlugin extends Plugin {
     private String interstitialId() { return useLiveAds() ? PROD_INTERSTITIAL : TEST_INTERSTITIAL; }
     private String rewardedId() { return useLiveAds() ? PROD_REWARDED : TEST_REWARDED; }
 
-    private boolean isDebugBuild() {
-        return (getContext().getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+    private boolean useLiveAds() {
+        return getContext().getResources().getBoolean(R.bool.use_live_ads);
     }
 
     private boolean canRequestAds() {
