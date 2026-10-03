@@ -1,4 +1,4 @@
-name: Build Razor City Play Release AAB
+name: Build Razor City Play Internal Test AAB
 
 on:
   workflow_dispatch:
@@ -51,19 +51,19 @@ jobs:
           printf '%s' "$RAZOR_UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/razor-city-upload.jks"
           keytool -list             -keystore "$RUNNER_TEMP/razor-city-upload.jks"             -storepass "$RAZOR_UPLOAD_PASSWORD"             -alias razorcityupload >/dev/null
 
-      - name: Build signed Play AAB
+      - name: Build signed internal-test AAB
         working-directory: android
         env:
           RAZOR_UPLOAD_KEYSTORE_PATH: ${{ runner.temp }}/razor-city-upload.jks
           RAZOR_UPLOAD_PASSWORD: ${{ secrets.RAZOR_UPLOAD_PASSWORD }}
-        run: ./gradlew bundleRelease
+        run: ./gradlew bundleRelease -PuseLiveAds=false
 
       - name: Verify AAB signature
         run: jarsigner -verify android/app/build/outputs/bundle/release/app-release.aab
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Razor-City-Play-Release-AAB
+          name: Razor-City-Internal-Test-AAB
           path: android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 30
