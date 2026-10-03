@@ -261,7 +261,7 @@ function PlayScreen() {
   const playing = game.phase === "play";
 
   return (
-    <main className={`min-h-dvh bg-ink ${shaking ? "shake" : ""}`}>
+    <main className={`safe-top min-h-dvh bg-ink ${shaking ? "shake" : ""}`}>
       <header className="border-b border-line bg-panel">
         <div className="mx-auto flex max-w-6xl items-start justify-between gap-3 px-3 py-3">
           <div>
@@ -269,6 +269,13 @@ function PlayScreen() {
             <p className="mt-1 text-sm text-paper">
               {game.crew} · {game.boss}
             </p>
+            <button
+              type="button"
+              onClick={() => { void showPrivacyOptions(); }}
+              className="mt-1 text-xs text-mute underline underline-offset-4"
+            >
+              Privacy choices
+            </button>
           </div>
           <div className="flex items-start gap-2">
             <div className="text-right">
