@@ -2,7 +2,7 @@
 
 ## City operations map
 
-Tap a region on the overhead street map, then **Travel here** to send the crew emblem along its street route. Use **Add waypoints**, tap up to six regions in order, and choose **Travel route** for multiple stops. **Zoom in** enlarges the map for scrolling on phones.
+Tap a region on the overhead street map, then **Travel here** to send the crew emblem along its street route. Use **Waypoints**, tap up to six regions in order, and choose **Travel route** for multiple stops. Region actions stay pinned beneath the map; **Manage** opens the detailed region controls. Cash, heat, respect and moves use a compact top bar; crew details, tips and privacy settings are under **Game options**. **Zoom in** enlarges the map for scrolling on phones.
 
 Travel is free scouting: it does not change territory ownership or stationed muscle. Select a rival region, choose free soldiers and **Order attack** to watch the crew approach through a player-held border and fight in the streets. Existing combat rules determine casualties, heat and capture; each attack costs one move. Other gameplay actions wait until the order finishes, but regions remain inspectable.
 

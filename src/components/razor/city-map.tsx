@@ -49,6 +49,19 @@ export function CityMap({ game, onManage, toast }: { game: GameState; onManage?:
     return () => window.clearInterval(timer);
   }, [order, tick]);
 
+  useEffect(() => {
+    if (zoom) return;
+    const frame = requestAnimationFrame(() => {
+      const el = scroll.current;
+      const svg = el?.querySelector("svg");
+      if (el && svg) {
+        const p = districtPoint(selected);
+        el.scrollTop = p.y / 620 * svg.getBoundingClientRect().height - el.clientHeight / 2;
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [selected.id, zoom]);
+
   function choose(id: string) {
     select(id);
     if (planning && !busy) setStops(current => current.length < 6 && current[current.length - 1] !== id ? [...current, id] : current);
@@ -102,8 +115,7 @@ export function CityMap({ game, onManage, toast }: { game: GameState; onManage?:
                   if ((index === 1 || index === 6) && b % 4 === 0) return <g key={b} pointerEvents="none"><ellipse cx={bx + 7} cy={by + 8} rx="11" ry="15" fill="#304a3d" /><circle cx={bx + 6} cy={by + 4} r="7" fill="#42624b" /></g>;
                   return <g key={b} pointerEvents="none" transform={`rotate(${index % 2 ? -4 : 4},${bx},${by})`}><rect x={bx + 4} y={by + 5} width={w} height={h} fill="#070e13" opacity=".8" /><rect x={bx} y={by} width={w} height={h} fill={d.lab ? "#3c4b4c" : index < 4 ? "#3e474b" : "#334044"} stroke="#697373" strokeWidth=".6" /><path d={`M${bx + 3} ${by + 4}h${w - 6}m${3 - w} 5h${w - 6}`} stroke={color} strokeOpacity=".4" strokeWidth="1.2" /><rect x={bx + w / 2 - 3} y={by + h / 2} width="6" height="6" fill="#202d32" /></g>;
                 })}
-                <g pointerEvents="none"><rect x={center.x - 57} y={center.y - 73} width="114" height="22" rx="3" fill="#0a171d" opacity=".88" /><text x={center.x} y={center.y - 58} fill={on ? "#ffe1a2" : "#e0e8dd"} textAnchor="middle" fontSize="13" fontWeight="700" letterSpacing="1">{d.short}</text>
-                <circle cx={center.x + 49} cy={center.y - 64} r="3" fill={color} /></g>
+
               </g>
             );
           })}
@@ -114,6 +126,12 @@ export function CityMap({ game, onManage, toast }: { game: GameState; onManage?:
             }))}
             <path d="M27 40L39 194 23 370 41 538" stroke="#6a7976" strokeWidth="4" strokeDasharray="2 6" />
             {[100, 250, 405, 550].map((x, i) => <g key={x}><path d={`M${x} 555v34h25`} fill="none" stroke="#748485" strokeWidth="3" /><path d={`M${x} 580l28-18m-18 6v20`} stroke="#a2a080" fill="none" /><rect x={x + 7} y={552 + i % 2 * 4} width="28" height="10" fill="#4d6267" /></g>)}
+          </g>
+          <g pointerEvents="none">
+            {game.districts.map(d => {
+              const p = districtPoint(d);
+              return <g key={d.id}><rect x={p.x - 57} y={p.y - 73} width="114" height="22" rx="3" fill="#0a171d" opacity=".94" /><text x={p.x} y={p.y - 58} fill={d.id === selected.id ? "#ffe1a2" : "#e0e8dd"} textAnchor="middle" fontSize="14" fontWeight="700" letterSpacing="1">{d.short}</text><circle cx={p.x + 49} cy={p.y - 64} r="3" fill={colors[d.owner]} /></g>;
+            })}
           </g>
           <g pointerEvents="none">
             <polyline points={pathPoints} className={busy ? "city-route active" : "city-route"} />

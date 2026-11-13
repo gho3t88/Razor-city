@@ -140,7 +140,7 @@
 .city-heading > .city-eyebrow { flex: 1; font-size: 10px; }
 .city-heading button { min-height: 40px; padding: 4px 10px; font-size: 12px; }
 .city-scroll { flex: 1; min-height: 0; min-width: 0; background: #0a1d27; }
-.city-svg { height: 100%; width: 100%; }
+.city-svg { height: auto; min-height: 100%; width: 100%; }
 .city-svg.city-zoom { width: 900px; height: 845px; min-width: 900px; min-height: 845px; }
 .city-region:hover > polygon, .city-region:focus-visible > polygon { stroke: #fff0c4; stroke-width: 3; fill-opacity: .22; }
 .city-key { position: relative; font-size: 11px; color: #b6c6c2; }
