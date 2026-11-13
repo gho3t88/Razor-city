@@ -178,7 +178,7 @@ export function CityMap({ game, onManage, onTrade, toast }: { game: GameState; o
       </div>
       <div className="city-orders">
         <div className="city-selection"><div><p className="city-eyebrow" style={{ color: colors[selected.owner] }}>{owner}</p><h3>{selected.name}</h3></div><span>{busy ? "ORDER ACTIVE" : `DEF ${selected.defense}`}</span></div>
-        <div className="city-market-note"><span>{localMarket.eventProduct ? `${PRODUCTS[localMarket.eventProduct].name} ${localMarket.event === "surge" ? "▲ PRICE SPIKE" : "▼ PRICE DROP"}` : "LOCAL PRICES & DEMAND"}</span><span>Dust $${localMarket.products.dust.sell}/unit</span></div>
+        <div className="city-market-note"><span>{localMarket.eventProduct ? `${PRODUCTS[localMarket.eventProduct].name} ${localMarket.event === "surge" ? "▲ PRICE SPIKE" : "▼ PRICE DROP"}` : "LOCAL PRICES & DEMAND"}</span><span>Dust ${localMarket.products.dust.sell}/unit</span></div>
         <div className="city-action-row">
           <button type="button" className={`${control} bg-gold text-ink font-semibold`} disabled={busy || game.phase !== "play" || route.length < 2} onClick={() => { travel(stops.length ? stops : [selected.id]); setStops([]); setPlanning(false); }}>Travel {stops.length ? "route" : "here"}</button>
           <button type="button" className={control} aria-pressed={planning} disabled={busy || game.phase !== "play"} onClick={() => { setPlanning(!planning); setStops([]); }}>{planning ? "Cancel route" : "Waypoints"}</button>

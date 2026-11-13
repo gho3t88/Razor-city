@@ -36,7 +36,7 @@ export function RegionMarket({ game, close }: { game: GameState; close: () => vo
       <div className={`market-news ${local.event}`}><strong>{local.event === "surge" ? "PRICE SPIKE" : local.event === "slump" ? "PRICE DROP" : "MARKET WATCH"}</strong><p>{local.headline}</p></div>
       <div className="market-location"><span>{present ? "● Your crew is here" : "○ Travel here to buy or sell"}</span><button type="button" aria-pressed={compare} onClick={() => setCompare(!compare)}>{compare ? "Hide comparison" : "Compare regions"}</button></div>
       {!present && <button type="button" className="market-travel" disabled={busy} onClick={() => { travel([selected.id]); close(); }}>Travel to {selected.name}</button>}
-      <p className="market-help">Quotes change each week and on arrival. Sales reduce prices and buyer demand; buying raises prices. No move cost. Local stock and buyers replenish next week.</p>
+      <p className="market-help">Quotes change each week and on arrival. Sales add police heat and reduce prices and buyer demand; buying raises prices. No move cost. Local stock and buyers replenish next week.</p>
       <div className="market-products">{PRODUCT_IDS.map(product => {
         const q = local.products[product]; const quantity = quantities[product];
         const trend = Math.round((q.sell / q.previousSell - 1) * 100);
