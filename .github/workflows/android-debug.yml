@@ -1,7 +1,7 @@
 name: Build Razor City Android Debug APK
 on:
   push:
-    branches: [main, feature/city-operations-map]
+    branches: [main, feature/city-operations-map, feature/character-contacts]
   workflow_dispatch:
 jobs:
   build:
