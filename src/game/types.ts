@@ -93,6 +93,7 @@ export interface WeekReport {
 }
 
 export interface GameState {
+  cityMap?: CityMapState;
   version: 1;
   seed: number;
   logSeq: number;
@@ -127,6 +128,21 @@ export interface GameState {
     raids: number;
     productSold: number;
   };
+}
+
+export interface CityOrder {
+  kind: "travel" | "attack";
+  route: string[];
+  startedAt: number;
+  arrivesAt: number;
+  endsAt: number;
+  soldiers: number;
+}
+
+export interface CityMapState {
+  locationId: string;
+  order: CityOrder | null;
+  report?: string;
 }
 
 export interface StartOpts {

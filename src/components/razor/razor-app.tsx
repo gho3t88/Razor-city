@@ -7,7 +7,6 @@ import {
   Plus,
   Shield,
   Store,
-  Swords,
   Volume2,
   VolumeX,
   X,
@@ -15,6 +14,8 @@ import {
 import { resumeAudio } from "@/game/audio";
 import { showInterstitial, showPrivacyOptions, showRewarded } from "@/lib/ads";
 import { TipSupport } from "./tip-support";
+import { CityMap } from "./city-map";
+import { cityMapOf } from "@/game/city-map";
 import { GANG_IDS, PRODUCTS } from "@/game/content";
 import {
   adjacentToPlayer,
@@ -28,14 +29,12 @@ import {
   freeDealers,
   freeMuscle,
   heatWord,
-  hit,
   hitOutlook,
   isGangId,
   layLow,
   money,
   moveIn,
   moveInCost,
-  neighborsOf,
   netWorth,
   previewSales,
   recruit,
@@ -73,20 +72,6 @@ function ownerWord(state: GameState, owner: Owner): string {
 
 function markClass(owner: Owner): string {
   return `mark-${owner}`;
-}
-
-function tileClass(owner: Owner): string {
-  return `tile-${owner}`;
-}
-
-function tense(state: GameState, d: District): boolean {
-  if (d.owner === "player") {
-    return neighborsOf(state, d.id).some((n) => isGangId(n.owner) && state.gangs[n.owner].alive && state.gangs[n.owner].relation < -20 && state.gangs[n.owner].truceWeeks === 0);
-  }
-  if (isGangId(d.owner) && state.gangs[d.owner].relation < -20 && state.gangs[d.owner].truceWeeks === 0) {
-    return neighborsOf(state, d.id).some((n) => n.owner === "player");
-  }
-  return false;
 }
 
 export function RazorApp() {
@@ -235,7 +220,6 @@ function PlayScreen() {
   const toast = useRazor((s) => s.toast);
   const pulse = useRazor((s) => s.pulse);
   const muted = useRazor((s) => s.muted);
-  const select = useRazor((s) => s.select);
   const setModal = useRazor((s) => s.setModal);
   const toggleMute = useRazor((s) => s.toggleMute);
   const clearToast = useRazor((s) => s.clearToast);
@@ -258,6 +242,7 @@ function PlayScreen() {
   if (!game) return null;
   const selected = game.districts.find((d) => d.id === game.selectedId) ?? game.districts[0];
   const preview = previewSales(game);
+  const busy = !!cityMapOf(game).order;
   const playing = game.phase === "play";
 
   return (
@@ -339,34 +324,7 @@ function PlayScreen() {
             <Legend owner="saints" label="Saints" />
             <Legend owner="cobras" label="Cobras" />
           </div>
-          <div className="grid grid-cols-4 gap-1.5">
-            {game.districts.map((d) => {
-              const on = d.id === selected?.id;
-              return (
-                <button
-                  key={d.id}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() => select(d.id)}
-                  className={`min-h-20 rounded-md border bg-panel px-1.5 py-2 text-left ${tileClass(d.owner)} ${on ? "tile-on border-gold" : "border-line"}`}
-                >
-                  <span className="flex items-center justify-between gap-1">
-                    <span className={`h-1.5 w-6 rounded-full ${markClass(d.owner)}`} />
-                    {tense(game, d) ? <Swords className="size-3 text-blood" aria-label="Border tension" /> : null}
-                  </span>
-                  <span className="mt-1 block truncate font-display text-xs tracking-wide text-paper">{d.short}</span>
-                  <span className="block truncate text-xs text-mute">{ownerWord(game, d.owner)}</span>
-                  {d.owner === "player" ? (
-                    <span className="mt-1 block h-1 overflow-hidden rounded-full bg-panel-2">
-                      <span className="block h-full bg-gold" style={{ width: `${d.loyalty}%` }} />
-                    </span>
-                  ) : (
-                    <span className="mt-1 block text-xs text-mute">DEF {d.defense}</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+          <CityMap game={game} />
           <p className="mt-3 text-sm text-mute">
             If the week closed now: {money(preview.cash)} across {preview.lines.length} block
             {preview.lines.length === 1 ? "" : "s"}, about +{Math.round(preview.heat)} heat.
@@ -388,7 +346,7 @@ function PlayScreen() {
         </section>
 
         <section className="lg:col-span-2">
-          {selected ? <Inspector game={game} district={selected} preview={preview} playing={playing} /> : null}
+          {selected ? <Inspector game={game} district={selected} preview={preview} playing={playing && !busy} /> : null}
         </section>
       </div>
 
@@ -401,7 +359,7 @@ function PlayScreen() {
             <button type="button" className={`${btnGhost} inline-flex flex-1 items-center justify-center gap-2`} onClick={() => setModal("ledger")}>
               <BookOpen className="size-4" /> Ledger
             </button>
-            <button type="button" className={`${btnGold} flex-[1.4] font-display text-base tracking-wide`} onClick={closeWeek}>
+            <button type="button" className={`${btnGold} flex-[1.4] font-display text-base tracking-wide`} disabled={busy} onClick={closeWeek}>
               Close week
             </button>
           </div>
@@ -458,6 +416,7 @@ function Inspector({
   playing: boolean;
 }) {
   const commit = useRazor((s) => s.commit);
+  const orderAttack = useRazor(s => s.orderAttack);
   const [armed, setArmed] = useState<string | null>(null);
   const [send, setSend] = useState(4);
   const quote = preview.lines.find((l) => l.districtId === district.id);
@@ -472,7 +431,7 @@ function Inspector({
     setSend(Math.max(1, Math.min(4, freeM || 1)));
   }, [district.id, freeM]);
 
-  const noMove = !playing ? "The week is closed." : game.ap < 1 ? "No moves left." : null;
+  const noMove = cityMapOf(game).order ? "Crew order in progress. You can inspect regions while they move." : !playing ? "The week is closed." : game.ap < 1 ? "No moves left." : null;
 
   return (
     <div className="rounded-xl border border-line bg-panel p-4">
@@ -670,7 +629,7 @@ function Inspector({
                 return;
               }
               setArmed(null);
-              commit(hit(game, district.id, Math.min(send, freeM)));
+              orderAttack(district.id, Math.min(send, freeM));
             }}
           />
           <Action

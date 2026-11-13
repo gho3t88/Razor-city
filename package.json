@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "node tests/run.mjs",
     "dev": "vite --host",
     "build": "tsc --noEmit && vite build",
     "android:sync": "npm run build && cap sync android"

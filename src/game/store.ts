@@ -3,6 +3,7 @@ import { playSound, resumeAudio, setAudioMuted, unlockAudio } from "@/game/audio
 import { continueReport, createGame, endWeek, isGameState, netWorth, resolveChoice, setSelected } from "@/game/logic";
 import type { GameState, StartOpts } from "@/game/types";
 import type { Result } from "@/game/logic";
+import { cityMapOf, completeCityOrder, issueCityOrder } from "@/game/city-map";
 
 const SAVE_KEY = "razor-city-save-v1";
 const LEGACY_KEY = "razor-city-legacy-v1";
@@ -47,6 +48,9 @@ interface RazorStore {
   setModal: (modal: "none" | "market" | "ledger") => void;
   clearToast: () => void;
   toggleMute: () => void;
+  travel: (waypoints: string[]) => void;
+  orderAttack: (id: string, soldiers: number) => void;
+  tickCity: () => void;
 }
 
 const emptyLegacy = (): Legacy => ({ wins: 0, bestWorth: 0, bestWeek: null, runs: 0 });
@@ -174,6 +178,10 @@ export const useRazor = create<RazorStore>((set, get) => ({
   },
 
   commit: (result) => {
+    if (get().game && cityMapOf(get().game!).order) {
+      set({ toast: "Your crew is carrying out an order. Wait for it to finish." });
+      return;
+    }
     if (!result.ok) {
       playSound("bad");
       set({ toast: result.error });
@@ -227,7 +235,7 @@ export const useRazor = create<RazorStore>((set, get) => ({
 
   grantAdReward: () => {
     const game = get().game;
-    if (!game || game.phase !== "play") return false;
+    if (!game || game.phase !== "play" || cityMapOf(game).order) return false;
     const key = `razor-city-ad-reward-week-${game.week}`;
     try {
       if (localStorage.getItem(key) === "1") {
@@ -244,6 +252,28 @@ export const useRazor = create<RazorStore>((set, get) => ({
   },
 
   setModal: (modal) => set({ modal }),
+
+  travel: (waypoints) => {
+    const game = get().game;
+    if (game) get().commit(issueCityOrder(game, waypoints));
+  },
+
+  orderAttack: (id, soldiers) => {
+    const game = get().game;
+    if (game) get().commit(soldiers < 1
+      ? { ok: false, error: "Send at least one soldier." }
+      : issueCityOrder(game, [id], soldiers));
+  },
+
+  tickCity: () => {
+    const game = get().game;
+    if (!game) return;
+    const result = completeCityOrder(game);
+    if (!result) return;
+    // Unlock only inside this synchronous completion, then use normal save/legacy handling.
+    set({ game: { ...game, cityMap: { ...cityMapOf(game), order: null } } });
+    get().commit(result);
+  },
 
   clearToast: () => set({ toast: null }),
 

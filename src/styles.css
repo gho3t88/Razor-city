@@ -36,17 +36,11 @@
 }
 
 .mark-player { background: var(--color-gold); }
-.mark-neutral { background: var(--color-line); }
+.mark-neutral { background: #627d80; }
 .mark-vultures { background: var(--color-blood); }
-.mark-lanterns { background: var(--color-paper); }
-.mark-saints { background: var(--color-mute); }
-.mark-cobras {
-  background: repeating-linear-gradient(
-    -45deg,
-    var(--color-gold) 0 3px,
-    var(--color-ink) 3px 6px
-  );
-}
+.mark-lanterns { background: #c6a2f5; }
+.mark-saints { background: #82b4e0; }
+.mark-cobras { background: #79c5a0; }
 
 .tile-player { box-shadow: inset 3px 0 0 var(--color-gold); }
 .tile-neutral { box-shadow: inset 3px 0 0 var(--color-line); }
@@ -84,4 +78,42 @@
 
 .safe-top {
   padding-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+}
+
+.city-shell { overflow: hidden; border: 1px solid #3b4b4a; border-radius: 12px; background: #101b20; }
+.city-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 14px; background: linear-gradient(120deg, #1b292c, #111b20); }
+.city-eyebrow { font-size: 10px; letter-spacing: 1.8px; color: #cfb883; }
+.city-heading h2 { margin: 2px 0 0; font-weight: 750; font-size: 18px; letter-spacing: 1px; }
+.city-heading h2 span { font-size: 10px; color: #8baba9; letter-spacing: 1.5px; }
+.city-scroll { overflow: auto; overscroll-behavior: contain; }
+.city-svg { display: block; width: 100%; min-width: 0; }
+.city-svg.city-zoom { min-width: 760px; }
+.city-region { cursor: pointer; outline: none; }
+.city-region:hover > rect:first-child, .city-region:focus-visible > rect:first-child { stroke: #fff0c4; stroke-width: 3; fill-opacity: .22; }
+.city-water-label { fill: #73999b; font-size: 10px; letter-spacing: 5px; }
+.city-route { fill: none; stroke: #e0b15a; stroke-opacity: .55; stroke-width: 2; stroke-dasharray: 5 5; stroke-linejoin: round; }
+.city-route.active { stroke-opacity: 1; animation: city-route-flow .6s linear infinite; }
+.city-orders { border-top: 1px solid #35464c; padding: 14px; }
+.city-readout { display: flex; align-items: baseline; gap: 8px; padding: 0 0 12px; margin-bottom: 12px; border-bottom: 1px solid #35464c; font-size: 12px; color: #d5dccc; min-height: 30px; }
+.city-live-dot { flex: 0 0 6px; width: 6px; height: 6px; border-radius: 50%; background: #88bba1; }
+.city-live-dot.battle { background: #ee816f; }
+.city-crew-halo { fill: #e0b15a; fill-opacity: .10; stroke: #e0b15a; stroke-opacity: .25; }
+.city-battle-ring { fill: #ee816f; fill-opacity: .10; stroke: #ee816f; stroke-dasharray: 4 6; animation: city-battle-pulse 1.2s ease-in-out infinite; }
+.city-soldier { animation: city-soldier-step .55s ease-in-out infinite alternate; }
+.soldier-1, .soldier-4 { animation-delay: -.2s; }
+.soldier-2, .soldier-5 { animation-delay: -.4s; }
+.city-gunfire { animation: city-gunfire .6s steps(1) infinite; }
+.soldier-1 .city-gunfire, .soldier-5 .city-gunfire { animation-delay: -.25s; }
+.soldier-2 .city-gunfire, .soldier-4 .city-gunfire { animation-delay: -.45s; }
+.city-car { animation: city-car-drive 18s linear infinite; }
+.city-car-1 { animation-delay: -7s; animation-direction: reverse; }
+.city-car-2 { animation-delay: -12s; }
+@keyframes city-route-flow { to { stroke-dashoffset: -10; } }
+@keyframes city-car-drive { from { transform: translateX(-20px); } to { transform: translateX(680px); } }
+@keyframes city-soldier-step { to { transform: translateY(-2px); } }
+@keyframes city-gunfire { 0%, 26%, 65%, 100% { opacity: 0; } 12%, 48% { opacity: 1; } }
+@keyframes city-battle-pulse { 50% { stroke-opacity: .4; fill-opacity: .04; } }
+@media (prefers-reduced-motion: reduce) {
+  .city-route.active, .city-car, .city-soldier, .city-gunfire, .city-battle-ring { animation: none; }
+  .city-gunfire { opacity: .5; }
 }
