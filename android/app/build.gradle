@@ -25,16 +25,19 @@ android {
         applicationId "com.hollowdocksgames.razorcity"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
-        versionName "1.2"
+        versionCode 9
+        versionName "1.8"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         resValue "bool", "use_live_ads", useLiveAds.toString()
+        resValue "string", "play_billing_public_key", System.getenv("RAZOR_PLAY_BILLING_PUBLIC_KEY") ?: ""
         aaptOptions {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
     buildTypes {
         debug {
+            applicationIdSuffix ".mappreview"
+            versionNameSuffix "-city-map-preview"
             signingConfig signingConfigs.debug
         }
         release {

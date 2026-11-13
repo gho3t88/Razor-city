@@ -1,5 +1,15 @@
 # Razor City Android
 
+## City operations map
+
+Tap a region on the overhead street map, then **Travel here** to send the crew emblem along its street route. Use **Waypoints**, tap up to six regions in order, and choose **Travel route** for multiple stops. Region actions stay pinned beneath the map; **Manage** opens the detailed region controls. Cash, heat, respect and moves use a compact top bar; crew details, tips and privacy settings are under **Game options**. **Zoom in** enlarges the map for scrolling on phones.
+
+Travel is free scouting: it does not change territory ownership or stationed muscle. Select a rival region, choose free soldiers and **Order attack** to watch the crew approach through a player-held border and fight in the streets. Existing combat rules determine casualties, heat and capture; each attack costs one move. Other gameplay actions wait until the order finishes, but regions remain inspectable.
+
+Orders and crew position are saved on device. Reopening the game finishes overdue orders once. Existing version-one saves work without resetting progress. Reduced-motion settings disable decorative animation and smooth emblem movement.
+
+Run `npm test` for route, combat, save-resume and order-lock checks, and `npm run build` for TypeScript and production validation. Android packaging continues to use `npm run android:sync` and the existing APK/AAB workflows.
+
 This is a standalone offline Android version of the Razor City game. The gameplay source is copied from the Grok project; the server, login, and preview framework are excluded. Saves use WebView localStorage and remain on the device unless app data is cleared or the app is uninstalled.
 
 ## Build

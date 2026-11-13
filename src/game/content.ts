@@ -51,8 +51,8 @@ type DistrictSeed = Omit<
 const SEEDS: DistrictSeed[] = [
   {
     id: "glass",
-    name: "Glass Mile",
-    short: "GLASS",
+    name: "Crown Heights",
+    short: "CROWN HEIGHTS",
     blurb: "Old money and new vices. Pays like a mint and talks to the police.",
     col: 0,
     row: 0,
@@ -65,8 +65,8 @@ const SEEDS: DistrictSeed[] = [
   },
   {
     id: "cathedral",
-    name: "Cathedral Ward",
-    short: "CATH",
+    name: "Old Town",
+    short: "OLD TOWN",
     blurb: "Choirs, charities, and envelopes that never see a ledger.",
     col: 1,
     row: 0,
@@ -79,8 +79,8 @@ const SEEDS: DistrictSeed[] = [
   },
   {
     id: "lantern",
-    name: "Lantern Row",
-    short: "LANTERN",
+    name: "Lantern Quarter",
+    short: "LANTERN QUARTER",
     blurb: "Tea houses, back rooms, and the Lanterns' home block.",
     col: 2,
     row: 0,
@@ -94,7 +94,7 @@ const SEEDS: DistrictSeed[] = [
   {
     id: "neon",
     name: "Neon Strip",
-    short: "NEON",
+    short: "NEON STRIP",
     blurb: "All-night money. All-night heat. Nobody here sleeps clean.",
     col: 3,
     row: 0,
@@ -107,8 +107,8 @@ const SEEDS: DistrictSeed[] = [
   },
   {
     id: "rail",
-    name: "Railspine",
-    short: "RAIL",
+    name: "Union Station",
+    short: "UNION STATION",
     blurb: "Every shipment in the city changes trains here.",
     col: 0,
     row: 1,
@@ -121,8 +121,8 @@ const SEEDS: DistrictSeed[] = [
   },
   {
     id: "market",
-    name: "Market Spine",
-    short: "MARKET",
+    name: "Market Square",
+    short: "MARKET SQUARE",
     blurb: "The bazaar buys anything if the price is even close.",
     col: 1,
     row: 1,
@@ -135,8 +135,8 @@ const SEEDS: DistrictSeed[] = [
   },
   {
     id: "cobra",
-    name: "Cobra Heights",
-    short: "COBRA",
+    name: "Cedar Hills",
+    short: "CEDAR HILLS",
     blurb: "Hill houses, party basements, Cobras on the corners.",
     col: 2,
     row: 1,
@@ -149,8 +149,8 @@ const SEEDS: DistrictSeed[] = [
   },
   {
     id: "sinks",
-    name: "The Sinks",
-    short: "SINKS",
+    name: "Lowtown",
+    short: "LOWTOWN",
     blurb: "Flood wards. Cheap hands, a buried lab, no officials.",
     col: 3,
     row: 1,
@@ -164,7 +164,7 @@ const SEEDS: DistrictSeed[] = [
   {
     id: "iron",
     name: "Ironworks",
-    short: "IRON",
+    short: "IRONWORKS",
     blurb: "Furnaces, night shifts, and the Saints' house.",
     col: 0,
     row: 2,
@@ -178,7 +178,7 @@ const SEEDS: DistrictSeed[] = [
   {
     id: "hollow",
     name: "Hollow Docks",
-    short: "HOLLOW",
+    short: "HOLLOW DOCKS",
     blurb: "Your water. Cranes, containers, and a lab that still runs.",
     col: 1,
     row: 2,
@@ -192,7 +192,7 @@ const SEEDS: DistrictSeed[] = [
   {
     id: "blackwater",
     name: "Blackwater",
-    short: "WATER",
+    short: "BLACKWATER",
     blurb: "South slips. Easy ground if you get there first.",
     col: 2,
     row: 2,
@@ -205,8 +205,8 @@ const SEEDS: DistrictSeed[] = [
   },
   {
     id: "vulture",
-    name: "Vulture Yard",
-    short: "YARD",
+    name: "Southside Yard",
+    short: "SOUTHSIDE YARD",
     blurb: "Scrap, smoke, and Harlan Voss's nest.",
     col: 3,
     row: 2,
@@ -299,3 +299,11 @@ export function makeGangs(): Record<GangId, Gang> {
 export const WIN_BLOCKS = 8;
 export const WIN_WORTH = 350_000;
 export const WIN_RESPECT = 55;
+
+// Refresh display copy in existing saves without changing territory or progress.
+export function refreshDistrictNames(districts: District[]): District[] {
+  return districts.map(d => {
+    const seed = SEEDS.find(s => s.id === d.id);
+    return seed ? { ...d, name: seed.name, short: seed.short, blurb: seed.blurb } : d;
+  });
+}

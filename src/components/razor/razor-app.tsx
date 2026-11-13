@@ -1,3 +1,9 @@
+import { EmpirePanel } from "./empire-panel";
+import { FightScreen } from "./fight-screen";
+import { CombatCenter, AmbushPopup } from "./combat-center";
+import { combatOf, levelOf, weaponOf } from "@/game/combat";
+import { RegionMarket } from "./region-market";
+import { regionMarket } from "@/game/region-economy";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   BookOpen,
@@ -7,7 +13,6 @@ import {
   Plus,
   Shield,
   Store,
-  Swords,
   Volume2,
   VolumeX,
   X,
@@ -15,6 +20,9 @@ import {
 import { resumeAudio } from "@/game/audio";
 import { showInterstitial, showPrivacyOptions, showRewarded } from "@/lib/ads";
 import { TipSupport } from "./tip-support";
+import { ContactsPanel, ContactPopup } from "./contacts";
+import { CityMap } from "./city-map";
+import { cityMapOf } from "@/game/city-map";
 import { GANG_IDS, PRODUCTS } from "@/game/content";
 import {
   adjacentToPlayer,
@@ -28,14 +36,12 @@ import {
   freeDealers,
   freeMuscle,
   heatWord,
-  hit,
   hitOutlook,
   isGangId,
   layLow,
   money,
   moveIn,
   moveInCost,
-  neighborsOf,
   netWorth,
   previewSales,
   recruit,
@@ -75,20 +81,6 @@ function markClass(owner: Owner): string {
   return `mark-${owner}`;
 }
 
-function tileClass(owner: Owner): string {
-  return `tile-${owner}`;
-}
-
-function tense(state: GameState, d: District): boolean {
-  if (d.owner === "player") {
-    return neighborsOf(state, d.id).some((n) => isGangId(n.owner) && state.gangs[n.owner].alive && state.gangs[n.owner].relation < -20 && state.gangs[n.owner].truceWeeks === 0);
-  }
-  if (isGangId(d.owner) && state.gangs[d.owner].relation < -20 && state.gangs[d.owner].truceWeeks === 0) {
-    return neighborsOf(state, d.id).some((n) => n.owner === "player");
-  }
-  return false;
-}
-
 export function RazorApp() {
   const boot = useRazor((s) => s.boot);
   const screen = useRazor((s) => s.screen);
@@ -114,6 +106,8 @@ function StartScreen() {
   const hasSave = useRazor((s) => s.hasSave);
   const saveMeta = useRazor((s) => s.saveMeta);
   const legacy = useRazor((s) => s.legacy);
+  const billingBusy = useRazor(s => s.billingBusy);
+  const recoveryToast = useRazor(s => s.toast);
   const [boss, setBoss] = useState("Reyes");
   const [crew, setCrew] = useState("Hollow Kings");
   const [difficulty, setDifficulty] = useState<"street" | "war">("street");
@@ -213,15 +207,16 @@ function StartScreen() {
               <span className="mt-0.5 block text-xs font-normal opacity-80">Hungrier gangs, hotter cops</span>
             </button>
           </div>
-          <button type="submit" className={`${btnGold} w-full font-display text-lg tracking-wide`}>
+          <button type="submit" disabled={billingBusy} className={`${btnGold} w-full font-display text-lg tracking-wide`}>
             Take the docks
           </button>
           {hasSave && saveMeta ? (
-            <button type="button" onClick={continueGame} className={`${btnGhost} mt-2 w-full`}>
+            <button type="button" disabled={billingBusy} onClick={continueGame} className={`${btnGhost} mt-2 w-full`}>
               Continue {saveMeta.crew} · week {saveMeta.week} · {money(saveMeta.cash)}
               {saveMeta.phase === "won" ? " · crowned" : saveMeta.phase === "lost" ? " · finished" : ""}
             </button>
           ) : null}
+          {billingBusy && <p className="mt-3 text-sm text-gold">{recoveryToast || "Recovering paid training…"}</p>}
           <div className="mt-3 text-center"><TipSupport /></div>
         </form>
       </div>
@@ -235,11 +230,19 @@ function PlayScreen() {
   const toast = useRazor((s) => s.toast);
   const pulse = useRazor((s) => s.pulse);
   const muted = useRazor((s) => s.muted);
-  const select = useRazor((s) => s.select);
   const setModal = useRazor((s) => s.setModal);
   const toggleMute = useRazor((s) => s.toggleMute);
   const clearToast = useRazor((s) => s.clearToast);
   const closeWeek = useRazor((s) => s.closeWeek);
+  const tickContacts = useRazor(s => s.tickContacts);
+  const billingBusy = useRazor(s => s.billingBusy);
+  const [empireOpen,setEmpireOpen]=useState(false);
+  const watchingFight=!!game?.fightScene&&!game.fightScene.dismissed;
+  const [combatOpen, setCombatOpen] = useState(false);
+  const [tradeOpen, setTradeOpen] = useState(false);
+  const [contactsOpen, setContactsOpen] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [shaking, setShaking] = useState(false);
 
   useEffect(() => {
@@ -255,169 +258,67 @@ function PlayScreen() {
     return () => window.clearTimeout(t);
   }, [pulse]);
 
+  useEffect(() => {
+    if (game?.cityMap?.order) setInspectorOpen(false);
+  }, [game?.cityMap?.order]);
+
+  useEffect(() => {
+    if (inspectorOpen || settingsOpen || contactsOpen || tradeOpen || combatOpen || empireOpen || watchingFight || modal !== "none") return;
+    const tick = () => { if (document.visibilityState === "visible") tickContacts(); };
+    tick();
+    const timer = window.setInterval(tick, 1000);
+    return () => window.clearInterval(timer);
+  }, [tickContacts, inspectorOpen, settingsOpen, contactsOpen, tradeOpen, combatOpen, empireOpen, watchingFight, modal]);
+
   if (!game) return null;
   const selected = game.districts.find((d) => d.id === game.selectedId) ?? game.districts[0];
   const preview = previewSales(game);
+  const busy = !!cityMapOf(game).order || !!combatOf(game).ambush;
   const playing = game.phase === "play";
 
   return (
-    <main className={`safe-top min-h-dvh bg-ink ${shaking ? "shake" : ""}`}>
-      <header className="border-b border-line bg-panel">
-        <div className="mx-auto flex max-w-6xl items-start justify-between gap-3 px-3 py-3">
-          <div>
-            <p className="font-display text-2xl leading-none tracking-wide text-gold">RAZOR CITY</p>
-            <p className="mt-1 text-sm text-paper">
-              {game.crew} · {game.boss}
-            </p>
-            <button
-              type="button"
-              onClick={() => { void showPrivacyOptions(); }}
-              className="mt-1 text-xs text-mute underline underline-offset-4"
-            >
-              Privacy choices
-            </button>
-          </div>
-          <div className="flex items-start gap-2">
-            <div className="text-right">
-              <p className="font-display text-2xl leading-none">WK {String(game.week).padStart(2, "0")}</p>
-              <p className="text-xs tracking-widest text-mute">{game.difficulty === "war" ? "WAR" : "STREET"}</p>
-            </div>
-            <TipSupport />
-            <button type="button" aria-label={muted ? "Unmute" : "Mute"} onClick={toggleMute} className={`${btnGhost} px-3`}>
-              {muted ? <VolumeX className="size-5" /> : <Volume2 className="size-5" />}
-            </button>
-          </div>
-        </div>
-        <div className="mx-auto grid max-w-6xl grid-cols-2 gap-2 px-3 pb-3 sm:grid-cols-4">
-          <Stat icon={<Coins className="size-4 text-gold" />} label="Cash" value={money(game.cash)} />
-          <div className="rounded-md border border-line bg-ink px-3 py-2">
-            <div className="flex items-center justify-between text-xs text-mute">
-              <span className="inline-flex items-center gap-1">
-                <Flame className={`size-4 ${game.heat >= 60 ? "text-blood heat-hot" : "text-gold"}`} /> Heat
-              </span>
-              <span className="text-paper">{Math.round(game.heat)}</span>
-            </div>
-            <div
-              className="mt-2 h-2 overflow-hidden rounded-full bg-panel-2"
-              role="meter"
-              aria-label="Police heat"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={Math.round(game.heat)}
-            >
-              <div
-                className={`h-full ${game.heat >= 60 ? "bg-blood" : "bg-gold"}`}
-                style={{ width: `${Math.max(0, Math.min(100, game.heat))}%` }}
-              />
-            </div>
-            <p className="mt-1 text-xs text-mute">
-              Strikes {game.strikes}/3
-              {game.heat >= 48 ? " · cool it or the raid comes" : ""}
-            </p>
-          </div>
-          <Stat icon={<Shield className="size-4 text-paper" />} label="Respect" value={String(game.respect)} />
-          <div className="rounded-md border border-line bg-ink px-3 py-2">
-            <p className="text-xs text-mute">Moves</p>
-            <p className="font-display text-xl leading-none text-paper">
-              {game.ap}
-              <span className="text-mute">/{game.maxAp}</span>
-            </p>
-            <p className="mt-1 text-xs text-mute">
-              {game.crewCounts.muscle} muscle · {game.crewCounts.dealers} dealers
-            </p>
-          </div>
-        </div>
+    <main className={`game-viewport ${shaking ? "shake" : ""}`}>
+      <header className="game-topbar">
+        <div className="game-brand"><strong>RAZOR CITY</strong><span>WK {game.week} · {game.difficulty.toUpperCase()}</span></div>
+        <button type="button" className="contacts-trigger" aria-label="Contacts and active deals" onClick={() => setContactsOpen(true)}>Deals {game.encounters?.deals.filter(d => d.status === "active").length || ""}</button>
+        <button type="button" className="game-icon" aria-label={muted ? "Unmute" : "Mute"} onClick={toggleMute}>{muted ? <VolumeX size={19} /> : <Volume2 size={19} />}</button>
+        <button type="button" className="game-icon" aria-label="Game options" onClick={() => setSettingsOpen(true)}>•••</button>
       </header>
-
-      <div className="mx-auto grid max-w-6xl gap-3 px-3 py-3 pb-24 lg:grid-cols-5">
-        <section className="lg:col-span-3">
-          <div className="mb-2 flex flex-wrap gap-2 text-xs text-mute">
-            <Legend owner="player" label="You" />
-            <Legend owner="neutral" label="Open" />
-            <Legend owner="vultures" label="Vultures" />
-            <Legend owner="lanterns" label="Lanterns" />
-            <Legend owner="saints" label="Saints" />
-            <Legend owner="cobras" label="Cobras" />
-          </div>
-          <div className="grid grid-cols-4 gap-1.5">
-            {game.districts.map((d) => {
-              const on = d.id === selected?.id;
-              return (
-                <button
-                  key={d.id}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() => select(d.id)}
-                  className={`min-h-20 rounded-md border bg-panel px-1.5 py-2 text-left ${tileClass(d.owner)} ${on ? "tile-on border-gold" : "border-line"}`}
-                >
-                  <span className="flex items-center justify-between gap-1">
-                    <span className={`h-1.5 w-6 rounded-full ${markClass(d.owner)}`} />
-                    {tense(game, d) ? <Swords className="size-3 text-blood" aria-label="Border tension" /> : null}
-                  </span>
-                  <span className="mt-1 block truncate font-display text-xs tracking-wide text-paper">{d.short}</span>
-                  <span className="block truncate text-xs text-mute">{ownerWord(game, d.owner)}</span>
-                  {d.owner === "player" ? (
-                    <span className="mt-1 block h-1 overflow-hidden rounded-full bg-panel-2">
-                      <span className="block h-full bg-gold" style={{ width: `${d.loyalty}%` }} />
-                    </span>
-                  ) : (
-                    <span className="mt-1 block text-xs text-mute">DEF {d.defense}</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-          <p className="mt-3 text-sm text-mute">
-            If the week closed now: {money(preview.cash)} across {preview.lines.length} block
-            {preview.lines.length === 1 ? "" : "s"}, about +{Math.round(preview.heat)} heat.
-          </p>
-          <div className="mt-2 space-y-1">
-            {game.log.slice(0, 3).map((line) => (
-              <p key={line.id} className={`text-sm ${toneClass(line.tone)}`}>
-                {line.text}
-              </p>
-            ))}
-          </div>
-          {toast ? (
-            <p role="status" className="mt-2 text-sm text-blood">
-              {toast}
-            </p>
-          ) : (
-            <p className="mt-2 min-h-5 text-sm text-mute"> </p>
-          )}
-        </section>
-
-        <section className="lg:col-span-2">
-          {selected ? <Inspector game={game} district={selected} preview={preview} playing={playing} /> : null}
-        </section>
+      <div className="game-stats" aria-label="Empire stats">
+        <span><Coins size={14} /><strong>{money(game.cash)}</strong></span>
+        <span title={`Police heat; ${game.strikes} strikes`}><Flame size={14} /><strong>{Math.round(game.heat)}</strong><small>heat</small></span>
+        <span><Shield size={14} /><strong>{game.respect}</strong></span>
+        <span><strong>{game.ap}/{game.maxAp}</strong><small>moves</small></span>
       </div>
+      <section className="game-map-space" aria-label="City operations">
+        <CityMap game={game} onManage={() => setInspectorOpen(true)} onTrade={() => setTradeOpen(true)} onGear={() => setCombatOpen(true)} toast={toast} />
+      </section>
+      <nav className="game-bottom" aria-label="Empire actions">
+        <button type="button" disabled={!playing || busy} onClick={() => setModal("market")}><Store size={18} />Market</button>
+        <button type="button" onClick={() => setModal("ledger")}><BookOpen size={18} />Ledger</button>
+        <button type="button" className="game-close-week" disabled={!playing || busy} onClick={closeWeek}>Close week</button>
+      </nav>
+      {inspectorOpen && selected && <Sheet title="REGION MANAGEMENT" onClose={() => setInspectorOpen(false)}><Inspector game={game} district={selected} preview={preview} playing={playing && !busy} onEmpire={()=>{setInspectorOpen(false);setEmpireOpen(true);}} /></Sheet>}
+      {settingsOpen && <Sheet title="GAME OPTIONS" onClose={() => setSettingsOpen(false)}>
+        <p className="text-paper">{game.crew} · {game.boss}</p>
+        <p className="mt-2 text-sm text-mute">{game.crewCounts.muscle} muscle · {game.crewCounts.dealers} dealers · {game.strikes}/3 police strikes</p>
+        <p className="mt-2 text-sm text-mute">Weekly sales forecast: {money(preview.cash)} · +{Math.round(preview.heat)} heat</p>
+        <button type="button" className="combat-opening mt-4" onClick={() => { setSettingsOpen(false); setCombatOpen(true); }}>Black Market & Training</button>
+        <button type="button" className="combat-opening" onClick={()=>{setSettingsOpen(false);setEmpireOpen(true);}}>Businesses & Crew</button>
+        <div className="my-4"><TipSupport /></div>
+        <button type="button" className={btnGhost} onClick={() => { void showPrivacyOptions(); }}>Privacy choices</button>
+      </Sheet>}
 
-      {playing ? (
-        <div className="sticky bottom-0 border-t border-line bg-panel">
-          <div className="mx-auto flex max-w-6xl gap-2 px-3 py-2">
-            <button type="button" className={`${btnGhost} inline-flex flex-1 items-center justify-center gap-2`} onClick={() => setModal("market")}>
-              <Store className="size-4" /> Market
-            </button>
-            <button type="button" className={`${btnGhost} inline-flex flex-1 items-center justify-center gap-2`} onClick={() => setModal("ledger")}>
-              <BookOpen className="size-4" /> Ledger
-            </button>
-            <button type="button" className={`${btnGold} flex-[1.4] font-display text-base tracking-wide`} onClick={closeWeek}>
-              Close week
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="sticky bottom-0 border-t border-line bg-panel">
-          <div className="mx-auto flex max-w-6xl px-3 py-2">
-            <button type="button" className={`${btnGhost} inline-flex w-full items-center justify-center gap-2`} onClick={() => setModal("ledger")}>
-              <BookOpen className="size-4" /> Ledger
-            </button>
-          </div>
-        </div>
-      )}
-
-      {modal === "market" && playing ? <MarketSheet game={game} /> : null}
-      {modal === "ledger" ? <LedgerSheet game={game} /> : null}
+      {empireOpen&&<EmpirePanel game={game} close={()=>setEmpireOpen(false)} onDefend={region=>{useRazor.getState().select(region);setEmpireOpen(false);setInspectorOpen(true);}}/>}
+      {combatOpen && <CombatCenter game={game} close={() => setCombatOpen(false)} />}
+      <AmbushPopup game={game} />
+      <FightScreen game={game}/>
+      {billingBusy && <div className="training-recovery" role="status"><p>{toast || "Saving training. Please wait…"}</p></div>}
+      {tradeOpen && <RegionMarket game={game} close={() => setTradeOpen(false)} />}
+      {contactsOpen && <ContactsPanel game={game} close={() => setContactsOpen(false)} />}
+      <ContactPopup game={game} />
+      {modal === "market" && playing ? <MarketSheet game={game} onGear={() => { setModal("none"); setCombatOpen(true); }} /> : null}
+      {modal === "ledger" ? <LedgerSheet game={game} onEmpire={()=>{setModal("none");setEmpireOpen(true);}} /> : null}
       {game.phase === "event" && game.pending ? <EventSheet /> : null}
       {game.phase === "summary" && game.report ? <SummarySheet /> : null}
       {game.phase === "won" || game.phase === "lost" ? <EndingSheet /> : null}
@@ -451,13 +352,16 @@ function Inspector({
   district,
   preview,
   playing,
+  onEmpire,
 }: {
   game: GameState;
   district: District;
   preview: ReturnType<typeof previewSales>;
   playing: boolean;
+  onEmpire: ()=>void;
 }) {
   const commit = useRazor((s) => s.commit);
+  const orderAttack = useRazor(s => s.orderAttack);
   const [armed, setArmed] = useState<string | null>(null);
   const [send, setSend] = useState(4);
   const quote = preview.lines.find((l) => l.districtId === district.id);
@@ -472,7 +376,7 @@ function Inspector({
     setSend(Math.max(1, Math.min(4, freeM || 1)));
   }, [district.id, freeM]);
 
-  const noMove = !playing ? "The week is closed." : game.ap < 1 ? "No moves left." : null;
+  const noMove = cityMapOf(game).order ? "Crew order in progress. You can inspect regions while they move." : !playing ? "The week is closed." : game.ap < 1 ? "No moves left." : null;
 
   return (
     <div className="rounded-xl border border-line bg-panel p-4">
@@ -484,6 +388,7 @@ function Inspector({
         {gang ? <Portrait src={gang.portrait} alt="" /> : district.owner === "player" ? <Portrait src="/art/reyes.jpg" alt="" /> : null}
       </div>
       <p className="mt-2 text-sm text-mute">{district.blurb}</p>
+      <button type="button" className="combat-opening mt-3" onClick={onEmpire}>Businesses & Crew</button>
       <dl className="mt-3 grid grid-cols-3 gap-2 text-sm">
         <div>
           <dt className="text-xs text-mute">Purse</dt>
@@ -503,7 +408,7 @@ function Inspector({
           <div key={id} className="grid grid-cols-5 items-center gap-2 text-xs">
             <span className="col-span-2 text-mute">{PRODUCTS[id].name}</span>
             <span className="col-span-3 h-1.5 overflow-hidden rounded-full bg-ink">
-              <span className="block h-full bg-gold" style={{ width: `${district.demand[id]}%` }} />
+              <span className="block h-full bg-gold" style={{ width: `${regionMarket(game, district.id).products[id].demand}%` }} />
             </span>
           </div>
         ))}
@@ -670,7 +575,7 @@ function Inspector({
                 return;
               }
               setArmed(null);
-              commit(hit(game, district.id, Math.min(send, freeM)));
+              orderAttack(district.id, Math.min(send, freeM));
             }}
           />
           <Action
@@ -782,7 +687,7 @@ function Sheet({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
-function MarketSheet({ game }: { game: GameState }) {
+function MarketSheet({ game, onGear }: { game: GameState; onGear: () => void }) {
   const commit = useRazor((s) => s.commit);
   const setModal = useRazor((s) => s.setModal);
   const grantAdReward = useRazor((s) => s.grantAdReward);
@@ -796,6 +701,7 @@ function MarketSheet({ game }: { game: GameState }) {
   };
   return (
     <Sheet title="WHOLESALE" onClose={() => setModal("none")}>
+      <button type="button" className="combat-opening" onClick={onGear}>Black Market & Training · Level {levelOf(game)}</button>
       <p className="mb-3 text-sm text-mute">Buying is free of moves. Prices drift every week. You hold the stash, corners spend it.</p>
       <button type="button" disabled={adBusy} className={`${btnGold} mb-3 w-full`} onClick={claimSponsorBonus}>
         {adBusy ? "Loading sponsor…" : "Watch ad · get $1,000 bonus"}
@@ -834,13 +740,14 @@ function MarketSheet({ game }: { game: GameState }) {
   );
 }
 
-function LedgerSheet({ game }: { game: GameState }) {
+function LedgerSheet({ game,onEmpire }: { game: GameState;onEmpire:()=>void }) {
   const setModal = useRazor((s) => s.setModal);
   const abandon = useRazor((s) => s.abandon);
   const blocks = game.districts.filter((d) => d.owner === "player").length;
   const worth = netWorth(game);
   return (
     <Sheet title="LEDGER" onClose={() => setModal("none")}>
+      <button type="button" className="combat-opening" onClick={onEmpire}>Businesses, Crew & Rival Threats</button>
       <div className="mb-4 grid grid-cols-3 gap-2 text-sm">
         <div className="rounded-md bg-ink p-2">
           <p className="text-xs text-mute">Blocks</p>

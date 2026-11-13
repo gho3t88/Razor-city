@@ -93,6 +93,13 @@ export interface WeekReport {
 }
 
 export interface GameState {
+  empire?: import("./empire").Empire;
+  regionEvents?: { week: number; events: Record<string, import("./world-events").RegionEvent | null> };
+  fightScene?: import("./fight-scene").FightScene;
+  combat?: import("./combat").CombatProfile;
+  regionMarkets?: Record<string, import("./region-economy").RegionEconomy>;
+  encounters?: import("./encounters").Encounters;
+  cityMap?: CityMapState;
   version: 1;
   seed: number;
   logSeq: number;
@@ -127,6 +134,22 @@ export interface GameState {
     raids: number;
     productSold: number;
   };
+}
+
+export interface CityOrder {
+  ambush?: import("./combat").Ambush;
+  kind: "travel" | "attack" | "ambush";
+  route: string[];
+  startedAt: number;
+  arrivesAt: number;
+  endsAt: number;
+  soldiers: number;
+}
+
+export interface CityMapState {
+  locationId: string;
+  order: CityOrder | null;
+  report?: string;
 }
 
 export interface StartOpts {
