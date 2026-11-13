@@ -1,4 +1,7 @@
-import { combatMultiplier, combatOf, grantFightRewards } from "./combat";
+import { applyEmpireWeek, empireOf, hasThreat, medicalLosses, queueRetaliation, resolveRetaliations, specialistBonus } from "./empire";
+import { eventEffects, refreshRegionEvents, regionEvent } from "./world-events";
+import { finishFight } from "./fight-scene";
+import { combatMultiplier, combatOf, grantFightRewards, levelOf, weaponOf } from "./combat";
 import { regionMarket, refreshRegionMarkets, consumeLocalDemand } from "./region-economy";
 import { advanceEncounters } from "./encounters";
 import { GANG_IDS, PRODUCTS, PRODUCT_IDS, WIN_BLOCKS, WIN_RESPECT, WIN_WORTH, makeDistricts, makeGangs } from "@/game/content";
@@ -132,7 +135,7 @@ export function netWorth(state: GameState): number {
   let stash = 0;
   for (const id of PRODUCT_IDS) stash += state.stash[id] * state.prices[id].wholesale;
   const reserved = (state.encounters?.deals ?? []).filter(d => d.status === "active").reduce((sum, d) => sum + d.delivered * state.prices[d.product].wholesale, 0);
-  return Math.round(state.cash + stash + reserved + playerBlocks(state).length * 15000);
+  return Math.round(state.cash + stash + reserved + empireOf(state).businesses.filter(b=>state.districts.find(d=>d.id===b.region)?.owner==="player").reduce((n,b)=>n+b.invested,0) + playerBlocks(state).length * 15000);
 }
 
 export function relationWord(n: number, truceWeeks: number): string {
@@ -281,7 +284,7 @@ export function quoteDistrict(state: GameState, d: District, stash: Record<Produ
     const heatTax = state.heat >= 80 ? 0.78 : state.heat >= 60 ? 0.9 : 1;
     const unit = market.products[product].sell * (0.58 + d.loyalty / 200) * heatTax;
     const cash = Math.max(1, Math.round(units * unit));
-    const heat = units * PRODUCTS[product].heat * d.heatMod * 0.42;
+    const heat = units * PRODUCTS[product].heat * d.heatMod * 0.42 * eventEffects(state,d.id,product).heat;
     return { districtId: d.id, district: d.name, product, units, cash, heat };
   }
   return null;
@@ -359,6 +362,7 @@ export function createGame(opts: StartOpts): GameState {
   if (difficulty === "war") {
     for (const id of GANG_IDS) state.gangs[id].muscle = Math.round(state.gangs[id].muscle * 1.3);
   }
+  refreshRegionEvents(state);
   refreshRegionMarkets(state);
   refreshDefense(state);
   pushLog(state, `${state.boss} opens the books for the ${state.crew}.`, "gold");
@@ -612,7 +616,7 @@ export function hit(state: GameState, id: string, commit: number): Result {
   const atk = send * (5.5 + next.respect / 30) * combatMultiplier(next) * (0.72 + rng() * 0.55);
   const def = d.defense;
   if (atk > def) {
-    const losses = Math.min(send, Math.max(1, Math.round(send * (0.1 + rng() * 0.16))));
+    const losses = Math.min(send, medicalLosses(next, Math.max(1, Math.round(send * (0.1 + rng() * 0.16)))));
     next.crewCounts.muscle = Math.max(0, next.crewCounts.muscle - losses);
     clampStations(next);
     const wasHome = d.id === gang?.home;
@@ -635,9 +639,11 @@ export function hit(state: GameState, id: string, commit: number): Result {
     const homeLine = wasHome ? " You took their house." : "";
     grantFightRewards(next, true, Math.max(1, Math.round(def / 6)));
     pushLog(next, `${d.name} falls. Lost ${losses} muscle.${homeLine}`, "blood");
+    if(gang) queueRetaliation(next,gang.id,d.id);
+    finishFight(next,true,`Victory in ${d.name}. ${losses} soldier losses. The block belongs to you.`);
     return finish(next, "hit");
   }
-  const losses = Math.min(send, Math.max(1, Math.round(send * (0.34 + rng() * 0.28))));
+  const losses = Math.min(send, medicalLosses(next, Math.max(1, Math.round(send * (0.34 + rng() * 0.28)))));
   next.crewCounts.muscle = Math.max(0, next.crewCounts.muscle - losses);
   clampStations(next);
   if (gang) { gang.relation = clamp(gang.relation - 14, -100, 80); gang.truceWeeks = 0; }
@@ -645,6 +651,7 @@ export function hit(state: GameState, id: string, commit: number): Result {
   next.respect = clamp(next.respect - 2, 0, 100);
   grantFightRewards(next, false, Math.max(1, Math.round(def / 6)));
   pushLog(next, `${gang?.name ?? "Local defenders"} hold ${d.name}. You lose ${losses} muscle.`, "blood");
+  finishFight(next,false,`Defeat in ${d.name}. ${losses} soldier losses. Your crew pulled back.`);
   return finish(next, "hit");
 }
 
@@ -693,7 +700,8 @@ function loyaltyDrift(state: GameState, soldIds: Set<string>) {
 
 function captureByGang(state: GameState, d: District, gang: Gang, rng: () => number, vengeance: boolean) {
   if (d.owner === "player") {
-    releaseCrew(state, d, vengeance ? 0.25 : 0.45, 0.5);
+    const keep=vengeance ? .25 : .45;
+    releaseCrew(state,d,keep+(1-keep)*specialistBonus(state,"medicine"),.5);
     state.respect = clamp(state.respect - 3, 0, 100);
     state.heat = clamp(state.heat + 4, 0, 100);
   } else if (isGangId(d.owner) && d.owner !== gang.id) {
@@ -718,6 +726,7 @@ function gangTurn(state: GameState, id: GangId, rng: () => number) {
   if (!g.alive) return;
   let owned = state.districts.filter((d) => d.owner === id);
   if (owned.length === 0) {
+    if(hasThreat(state,id)) return;
     const targets = playerBlocks(state);
     if (targets.length && g.muscle >= 4 && g.truceWeeks === 0) {
       const target = [...targets].sort((a, b) => a.defense - b.defense)[0];
@@ -763,7 +772,7 @@ function gangTurn(state: GameState, id: GangId, rng: () => number) {
   else g.relation += 1;
   g.relation = clamp(g.relation, -100, 70);
 
-  const hostile = g.relation < -34 && g.truceWeeks === 0;
+  const hostile = g.relation < -34 && g.truceWeeks === 0 && !hasThreat(state,id);
   const expandP = state.difficulty === "war" ? 0.74 : 0.52;
   let target: District | null = null;
   let kind: "player" | "neutral" | "rival" | null = null;
@@ -954,6 +963,11 @@ export function endWeek(state: GameState): Result {
   const cashBefore = next.cash;
   const heatBefore = next.heat;
   const linesStart = next.logSeq;
+  applyEmpireWeek(next);
+  const acted = resolveRetaliations(next,rng,(gang,region)=>captureByGang(next,districtById(next,region)!,next.gangs[gang],rng,true),(won,strength,region,gang)=>{
+    grantFightRewards(next,won,Math.max(1,Math.round(strength/6)));
+    next.fightScene={id:`counter-${next.week}-${gang}`,kind:"retaliation",region,enemy:next.gangs[gang].name,allies:districtById(next,region)!.stationMuscle,enemyPower:strength,playerPower:districtById(next,region)!.defense,weapon:weaponOf(next).name,level:levelOf(next),startedAt:0,endsAt:0,status:won?"won":"lost",summary:won?"Your crew held the block against a counterattack.":"The rival crew recaptured your block.",dismissed:true};
+  });
   const sold = applySales(next);
   if (!sold.length) pushLog(next, "No corners ran. Station a dealer and keep product in the stash.", "mute");
   const soldCash = sold.reduce((s, l) => s + l.cash, 0);
@@ -962,7 +976,7 @@ export function endWeek(state: GameState): Result {
   loyaltyDrift(next, new Set(sold.map((s) => s.districtId)));
   for (const id of GANG_IDS) {
     if (next.phase === "lost") break;
-    gangTurn(next, id, rng);
+    if(!acted.has(id)) gangTurn(next, id, rng);
     refreshDefense(next);
   }
   if (next.bonus) {
@@ -975,6 +989,8 @@ export function endWeek(state: GameState): Result {
   raid(next, rng);
   const closedWeek = next.week;
   next.week += 1;
+  refreshRegionEvents(next);
+  for(const d of next.districts.filter(d=>regionEvent(next,d.id)).slice(0,3))pushLog(next,`Next week in ${d.name}: ${regionEvent(next,d.id)!.name}.`,"mute");
   refreshRegionMarkets(next);
   advanceEncounters(next);
   next.ap = Math.max(1, next.maxAp - next.apPenalty);

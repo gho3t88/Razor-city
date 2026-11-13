@@ -47,6 +47,7 @@ try {
   await page.getByText(/Fighting in Ironworks/).waitFor();
   await page.screenshot({ path: "test-results/street-battle.png" });
   await page.getByText(/captured|Attack repelled/).first().waitFor();
+  await page.getByRole("button", { name: "Back to city", exact: true }).click();
   await page.getByRole("button", { name: "Manage", exact: true }).click();
   await page.getByRole("heading", { name: "REGION MANAGEMENT", exact: true }).waitFor();
   await page.getByRole("button", { name: "Close", exact: true }).click();

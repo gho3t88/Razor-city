@@ -1,3 +1,4 @@
+import { regionEvent } from "@/game/world-events";
 import { useEffect, useRef, useState } from "react";
 import { PRODUCT_IDS, PRODUCTS } from "@/game/content";
 import { money } from "@/game/logic";
@@ -33,6 +34,7 @@ export function RegionMarket({ game, close }: { game: GameState; close: () => vo
   }}>
     <header className="region-market-title"><div><p>LOCAL ECONOMY · WEEK {game.week}</p><h2>{selected.name}</h2></div><button type="button" aria-label="Close regional market" onClick={close}>✕</button></header>
     <div className="region-market-content">
+      {regionEvent(game,selected.id)&&<div className="market-news market-world-event"><strong>{regionEvent(game,selected.id)!.name.toUpperCase()}</strong><p>{regionEvent(game,selected.id)!.description}</p></div>}
       <div className={`market-news ${local.event}`}><strong>{local.event === "surge" ? "PRICE SPIKE" : local.event === "slump" ? "PRICE DROP" : "MARKET WATCH"}</strong><p>{local.headline}</p></div>
       <div className="market-location"><span>{present ? "● Your crew is here" : "○ Travel here to buy or sell"}</span><button type="button" aria-pressed={compare} onClick={() => setCompare(!compare)}>{compare ? "Hide comparison" : "Compare regions"}</button></div>
       {!present && <button type="button" className="market-travel" disabled={busy} onClick={() => { travel([selected.id]); close(); }}>Travel to {selected.name}</button>}

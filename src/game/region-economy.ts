@@ -1,3 +1,4 @@
+import { eventEffects } from "./world-events";
 import { combatOf } from "./combat";
 import { PRODUCTS, PRODUCT_IDS } from "./content";
 import type { District, GameState, ProductId } from "./types";
@@ -26,10 +27,11 @@ function generate(s: GameState, d: District, previous?: RegionEconomy): RegionEc
   const rng = randomFor(s, d.id, "weekly");
   const e: RegionEconomy = { week: s.week, visits: 0, headline: "Normal trading. Local prices and demand vary.", event: "steady", eventProduct: null, products: {} as RegionEconomy["products"] };
   for (const product of PRODUCT_IDS) {
-    const demand = Math.round(limit(d.demand[product] * (.55 + rng() * 1.05), 8, 100));
+    const effects = eventEffects(s,d.id,product);
+    const demand = Math.round(limit(d.demand[product] * (.55 + rng() * 1.05) * effects.demand, 8, 100));
     const capacity = Math.round((18 + demand * 1.1) * PRODUCTS[product].volume);
     const q: LocalQuote = { sell: 0, buy: 0, previousSell: previous?.products[product].sell ?? 0, demand, buyers: Math.max(8, capacity), supply: Math.round(18 + rng() * 100) };
-    setPrice(q, s.prices[product].street * d.wealth * (.45 + demand / 140) * (.52 + rng() * .95), product);
+    setPrice(q, s.prices[product].street * d.wealth * (.45 + demand / 140) * (.52 + rng() * .95) * effects.price, product);
     if (!previous) q.previousSell = q.sell;
     e.products[product] = q;
   }
@@ -89,7 +91,7 @@ export function tradeRegion(state: GameState, region: string, product: ProductId
   if (side === "sell") {
     s.stash[product] -= quantity; s.cash += total; s.stats.earned += total; s.stats.productSold += quantity;
     const d = s.districts.find(d => d.id === region)!;
-    s.heat = Math.min(100, s.heat + quantity * PRODUCTS[product].heat * d.heatMod * .25);
+    s.heat = Math.min(100, s.heat + quantity * PRODUCTS[product].heat * d.heatMod * .25 * eventEffects(s,region,product).heat);
     q.buyers -= quantity; setPrice(q, q.sell * (1 - Math.min(.12, quantity / 600)), product);
   } else {
     s.cash -= total; s.stash[product] += quantity; s.stats.spent += total;

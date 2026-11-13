@@ -93,6 +93,9 @@ export interface WeekReport {
 }
 
 export interface GameState {
+  empire?: import("./empire").Empire;
+  regionEvents?: { week: number; events: Record<string, import("./world-events").RegionEvent | null> };
+  fightScene?: import("./fight-scene").FightScene;
   combat?: import("./combat").CombatProfile;
   regionMarkets?: Record<string, import("./region-economy").RegionEconomy>;
   encounters?: import("./encounters").Encounters;
@@ -135,7 +138,7 @@ export interface GameState {
 
 export interface CityOrder {
   ambush?: import("./combat").Ambush;
-  kind: "travel" | "attack";
+  kind: "travel" | "attack" | "ambush";
   route: string[];
   startedAt: number;
   arrivesAt: number;

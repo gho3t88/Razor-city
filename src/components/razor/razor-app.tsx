@@ -1,3 +1,5 @@
+import { EmpirePanel } from "./empire-panel";
+import { FightScreen } from "./fight-screen";
 import { CombatCenter, AmbushPopup } from "./combat-center";
 import { combatOf, levelOf, weaponOf } from "@/game/combat";
 import { RegionMarket } from "./region-market";
@@ -234,6 +236,8 @@ function PlayScreen() {
   const closeWeek = useRazor((s) => s.closeWeek);
   const tickContacts = useRazor(s => s.tickContacts);
   const billingBusy = useRazor(s => s.billingBusy);
+  const [empireOpen,setEmpireOpen]=useState(false);
+  const watchingFight=!!game?.fightScene&&!game.fightScene.dismissed;
   const [combatOpen, setCombatOpen] = useState(false);
   const [tradeOpen, setTradeOpen] = useState(false);
   const [contactsOpen, setContactsOpen] = useState(false);
@@ -259,12 +263,12 @@ function PlayScreen() {
   }, [game?.cityMap?.order]);
 
   useEffect(() => {
-    if (inspectorOpen || settingsOpen || contactsOpen || tradeOpen || combatOpen || modal !== "none") return;
+    if (inspectorOpen || settingsOpen || contactsOpen || tradeOpen || combatOpen || empireOpen || watchingFight || modal !== "none") return;
     const tick = () => { if (document.visibilityState === "visible") tickContacts(); };
     tick();
     const timer = window.setInterval(tick, 1000);
     return () => window.clearInterval(timer);
-  }, [tickContacts, inspectorOpen, settingsOpen, contactsOpen, tradeOpen, combatOpen, modal]);
+  }, [tickContacts, inspectorOpen, settingsOpen, contactsOpen, tradeOpen, combatOpen, empireOpen, watchingFight, modal]);
 
   if (!game) return null;
   const selected = game.districts.find((d) => d.id === game.selectedId) ?? game.districts[0];
@@ -294,24 +298,27 @@ function PlayScreen() {
         <button type="button" onClick={() => setModal("ledger")}><BookOpen size={18} />Ledger</button>
         <button type="button" className="game-close-week" disabled={!playing || busy} onClick={closeWeek}>Close week</button>
       </nav>
-      {inspectorOpen && selected && <Sheet title="REGION MANAGEMENT" onClose={() => setInspectorOpen(false)}><Inspector game={game} district={selected} preview={preview} playing={playing && !busy} /></Sheet>}
+      {inspectorOpen && selected && <Sheet title="REGION MANAGEMENT" onClose={() => setInspectorOpen(false)}><Inspector game={game} district={selected} preview={preview} playing={playing && !busy} onEmpire={()=>{setInspectorOpen(false);setEmpireOpen(true);}} /></Sheet>}
       {settingsOpen && <Sheet title="GAME OPTIONS" onClose={() => setSettingsOpen(false)}>
         <p className="text-paper">{game.crew} · {game.boss}</p>
         <p className="mt-2 text-sm text-mute">{game.crewCounts.muscle} muscle · {game.crewCounts.dealers} dealers · {game.strikes}/3 police strikes</p>
         <p className="mt-2 text-sm text-mute">Weekly sales forecast: {money(preview.cash)} · +{Math.round(preview.heat)} heat</p>
         <button type="button" className="combat-opening mt-4" onClick={() => { setSettingsOpen(false); setCombatOpen(true); }}>Black Market & Training</button>
+        <button type="button" className="combat-opening" onClick={()=>{setSettingsOpen(false);setEmpireOpen(true);}}>Businesses & Crew</button>
         <div className="my-4"><TipSupport /></div>
         <button type="button" className={btnGhost} onClick={() => { void showPrivacyOptions(); }}>Privacy choices</button>
       </Sheet>}
 
+      {empireOpen&&<EmpirePanel game={game} close={()=>setEmpireOpen(false)} onDefend={region=>{useRazor.getState().select(region);setEmpireOpen(false);setInspectorOpen(true);}}/>}
       {combatOpen && <CombatCenter game={game} close={() => setCombatOpen(false)} />}
       <AmbushPopup game={game} />
+      <FightScreen game={game}/>
       {billingBusy && <div className="training-recovery" role="status"><p>{toast || "Saving training. Please wait…"}</p></div>}
       {tradeOpen && <RegionMarket game={game} close={() => setTradeOpen(false)} />}
       {contactsOpen && <ContactsPanel game={game} close={() => setContactsOpen(false)} />}
       <ContactPopup game={game} />
       {modal === "market" && playing ? <MarketSheet game={game} onGear={() => { setModal("none"); setCombatOpen(true); }} /> : null}
-      {modal === "ledger" ? <LedgerSheet game={game} /> : null}
+      {modal === "ledger" ? <LedgerSheet game={game} onEmpire={()=>{setModal("none");setEmpireOpen(true);}} /> : null}
       {game.phase === "event" && game.pending ? <EventSheet /> : null}
       {game.phase === "summary" && game.report ? <SummarySheet /> : null}
       {game.phase === "won" || game.phase === "lost" ? <EndingSheet /> : null}
@@ -345,11 +352,13 @@ function Inspector({
   district,
   preview,
   playing,
+  onEmpire,
 }: {
   game: GameState;
   district: District;
   preview: ReturnType<typeof previewSales>;
   playing: boolean;
+  onEmpire: ()=>void;
 }) {
   const commit = useRazor((s) => s.commit);
   const orderAttack = useRazor(s => s.orderAttack);
@@ -379,6 +388,7 @@ function Inspector({
         {gang ? <Portrait src={gang.portrait} alt="" /> : district.owner === "player" ? <Portrait src="/art/reyes.jpg" alt="" /> : null}
       </div>
       <p className="mt-2 text-sm text-mute">{district.blurb}</p>
+      <button type="button" className="combat-opening mt-3" onClick={onEmpire}>Businesses & Crew</button>
       <dl className="mt-3 grid grid-cols-3 gap-2 text-sm">
         <div>
           <dt className="text-xs text-mute">Purse</dt>
@@ -730,13 +740,14 @@ function MarketSheet({ game, onGear }: { game: GameState; onGear: () => void }) 
   );
 }
 
-function LedgerSheet({ game }: { game: GameState }) {
+function LedgerSheet({ game,onEmpire }: { game: GameState;onEmpire:()=>void }) {
   const setModal = useRazor((s) => s.setModal);
   const abandon = useRazor((s) => s.abandon);
   const blocks = game.districts.filter((d) => d.owner === "player").length;
   const worth = netWorth(game);
   return (
     <Sheet title="LEDGER" onClose={() => setModal("none")}>
+      <button type="button" className="combat-opening" onClick={onEmpire}>Businesses, Crew & Rival Threats</button>
       <div className="mb-4 grid grid-cols-3 gap-2 text-sm">
         <div className="rounded-md bg-ink p-2">
           <p className="text-xs text-mute">Blocks</p>

@@ -1,4 +1,6 @@
-import { combatOf, planAmbush } from "./combat";
+import { rememberTravel } from "./empire";
+import { finishFight } from "./fight-scene";
+import { combatMultiplier, combatOf, levelOf, planAmbush, resolveAmbush, weaponOf } from "./combat";
 import { visitRegionMarket } from "./region-economy";
 import { hit, neighborsOf } from "./logic";
 import type { Result } from "./logic";
@@ -64,6 +66,7 @@ export function issueCityOrder(game: GameState, stops: string[], soldiers = 0, n
   const arrivesAt = now + Math.max(1, route.length - 1) * STREET_MS;
   const next = structuredClone(game);
   const ambush = !attack ? planAmbush(next, route, now, arrivesAt) : undefined;
+  if(attack){const d=next.districts.find(d=>d.id===target)!;next.fightScene={id:`block-${next.week}-${next.logSeq}-${target}`,kind:"block",region:target,enemy:d.owner==="neutral"?"Local defenders":next.gangs[d.owner as keyof typeof next.gangs].name,allies:soldiers,enemyPower:d.defense,playerPower:soldiers*(5.5+next.respect/30)*combatMultiplier(next),weapon:weaponOf(next).name,level:levelOf(next),startedAt:arrivesAt,endsAt:arrivesAt+BATTLE_MS,status:"active",summary:"Your crew is approaching the block.",dismissed:false};}
   next.cityMap = {
     locationId: map.locationId,
     order: { kind: attack ? "attack" : "travel", ambush, route, startedAt: now, arrivesAt, endsAt: arrivesAt + (attack ? BATTLE_MS : 0), soldiers },
@@ -82,11 +85,17 @@ export function completeCityOrder(game: GameState, now = Date.now()): Result | n
     return { ok: true, state: next, fx: "raid" };
   }
   if (now < order.endsAt) return null;
+  if(order.kind==="ambush"){
+    const result=resolveAmbush(game,"fight",now);
+    if(result.ok)finishFight(result.state,combatOf(result.state).wins>combatOf(game).wins,result.state.cityMap?.report??"The street fight is over.");
+    return result;
+  }
   const target = order.route[order.route.length - 1];
   const name = game.districts.find(d => d.id === target)?.name ?? target;
   if (order.kind === "travel") {
     const next = structuredClone(game);
     visitRegionMarket(next, target);
+    rememberTravel(next);
     next.cityMap = { locationId: target, order: null, report: `Crew arrived at ${name}.` };
     return { ok: true, state: next, fx: "tick" };
   }
@@ -113,7 +122,7 @@ export function crewPoint(game: GameState, now: number): { x: number; y: number 
   };
   if (!map.order) return point(map.locationId);
   const { route, startedAt, arrivesAt } = map.order;
-  const step = Math.min(route.length - 1, Math.max(0, (now - startedAt) / (arrivesAt - startedAt)) * (route.length - 1));
+  const step = Math.min(route.length - 1, Math.max(0, (now - startedAt) / Math.max(1, arrivesAt - startedAt)) * (route.length - 1));
   const a = point(route[Math.floor(step)]);
   const b = point(route[Math.min(route.length - 1, Math.floor(step) + 1)]);
   const t = step % 1;

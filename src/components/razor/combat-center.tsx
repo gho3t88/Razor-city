@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { combatMultiplier, combatOf, levelOf, MAX_LEVEL, trainingCost, WEAPONS, weaponOf, xpForLevel, ambushOutlook } from "@/game/combat";
+import { combatMultiplier, combatOf, levelOf, MAX_LEVEL, trainingCost, WEAPONS, weaponOf, xpForLevel, ambushOutlook, escapeChance } from "@/game/combat";
 import { money } from "@/game/logic";
 import { useRazor } from "@/game/store";
 import { CREDIT_PACKS, creditWallet, listCreditPacks, purchaseCredits } from "@/lib/credits";
@@ -48,8 +48,8 @@ export function CombatCenter({ game, close }: { game: GameState; close: () => vo
 
 export function AmbushPopup({ game }: { game: GameState }) {
   const resolve = useRazor(s => s.resolveAmbush); const a = combatOf(game).ambush;
-  if (!a) return null;
+  if (!a || game.cityMap?.order?.kind === "ambush") return null;
   const location = game.districts.find(d => d.id === a.location)?.name;
-  const chance = Math.round(Math.min(.9, .6 + (levelOf(game) - 1) * .015) * 100);
+  const chance = Math.round(escapeChance(game) * 100);
   return <ContactDialog title="AMBUSH ON THE STREET"><div className="incoming-person"><CharacterPortrait id="jax" large /><div><p className="contact-kicker">TRIP INTERRUPTED</p><h3>{a.attackers} attackers</h3><p>Near {location}</p></div></div><blockquote>Jax: “We've got trouble. Call it, boss—run, stand our ground, or hand it over?”</blockquote><div className="ambush-loadout">Level {levelOf(game)} · {weaponOf(game).name} · Fight outlook: <strong>{ambushOutlook(game)}</strong></div><div className="ambush-choices"><button type="button" onClick={() => resolve("run")}><strong>Run · {chance}% escape chance</strong><span>Return to your starting block. A failed escape costs some cash and unreserved stock.</span></button><button type="button" className="ambush-fight" onClick={() => resolve("fight")}><strong>Fight · {ambushOutlook(game)}</strong><span>Win for loot, XP and Street Credits, then continue traveling. Defeat can cost soldiers, cash and stock.</span></button><button type="button" onClick={() => resolve("surrender")}><strong>Surrender</strong><span>Give up 10% of cash (up to $5,000) and 25% of unreserved stock. No soldier losses; return to your starting block.</span></button></div><p className="contact-fine">Reserved bulk-order stock and purchased Street Credits are protected.</p></ContactDialog>;
 }

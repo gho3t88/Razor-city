@@ -25,8 +25,8 @@ android {
         applicationId "com.hollowdocksgames.razorcity"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 8
-        versionName "1.7"
+        versionCode 9
+        versionName "1.8"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         resValue "bool", "use_live_ads", useLiveAds.toString()
         resValue "string", "play_billing_public_key", System.getenv("RAZOR_PLAY_BILLING_PUBLIC_KEY") ?: ""

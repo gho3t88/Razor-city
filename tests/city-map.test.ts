@@ -52,7 +52,7 @@ for (const soldiers of [1, 4, 20]) {
   const result = completeCityOrder(attack.state, order.endsAt)!;
   const expected = hit(source, "iron", soldiers);
   assert.ok(result.ok && expected.ok);
-  const { cityMap: _map, ...actualGame } = result.state;
+  const { cityMap: _map, fightScene: _scene, ...actualGame } = result.state;
   assert.deepEqual(actualGame, expected.state, "Battle must preserve original RNG, losses, heat, AP and ownership");
   assert.equal(result.state.ap, game.ap - 1);
   assert.equal(result.state.districts.find(d => d.id === "iron")?.owner === "player", soldiers === 20);

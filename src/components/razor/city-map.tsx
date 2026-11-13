@@ -1,3 +1,4 @@
+import { regionEvent } from "@/game/world-events";
 import { combatOf, levelOf, weaponOf } from "@/game/combat";
 import { regionMarket } from "@/game/region-economy";
 import { PRODUCTS } from "@/game/content";
@@ -35,7 +36,7 @@ export function CityMap({ game, onManage, onTrade, onGear, toast }: { game: Game
   const route = order?.route ?? waypointRoute(game, stops.length ? stops : [selected.id]);
   const point = crewPoint(game, reducedMotion && order ? (now >= order.arrivesAt ? order.arrivesAt : order.startedAt) : now);
   const busy = !!order || !!combatOf(game).ambush;
-  const fighting = order?.kind === "attack" && now >= order.arrivesAt;
+  const fighting = !!order && (order.kind === "attack" || order.kind === "ambush") && now >= order.arrivesAt;
   const free = freeMuscle(game);
   const send = Math.min(soldiers, free);
   const owner = selected.owner === "player" ? "YOUR TERRITORY" : selected.owner === "neutral" ? "OPEN TERRITORY" : game.gangs[selected.owner].name.toUpperCase();
@@ -180,6 +181,7 @@ export function CityMap({ game, onManage, onTrade, onGear, toast }: { game: Game
       </div>
       <div className="city-orders">
         <div className="city-selection"><div><p className="city-eyebrow" style={{ color: colors[selected.owner] }}>{owner}</p><h3>{selected.name}</h3></div><span>{busy ? "ORDER ACTIVE" : `DEF ${selected.defense}`}</span></div>
+        {regionEvent(game,selected.id)&&<p className="city-event-strip">{regionEvent(game,selected.id)!.name} · Local market & travel effects</p>}
         <div className="city-market-note"><span>{localMarket.eventProduct ? `${PRODUCTS[localMarket.eventProduct].name} ${localMarket.event === "surge" ? "▲ PRICE SPIKE" : "▼ PRICE DROP"}` : "LOCAL PRICES & DEMAND"}</span><span>Dust ${localMarket.products.dust.sell}/unit</span></div>
         <div className="city-action-row">
           <button type="button" className={`${control} bg-gold text-ink font-semibold`} disabled={busy || game.phase !== "play" || route.length < 2} onClick={() => { travel(stops.length ? stops : [selected.id]); setStops([]); setPlanning(false); }}>Travel {stops.length ? "route" : "here"}</button>

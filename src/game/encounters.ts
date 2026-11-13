@@ -1,3 +1,4 @@
+import { rememberCrewChoice, rememberDeal, specialistBonus } from "./empire";
 import { combatOf } from "./combat";
 import { PRODUCTS, PRODUCT_IDS } from "./content";
 import type { GameState, ProductId } from "./types";
@@ -58,7 +59,7 @@ export function tickEncounters(state: GameState, now = Date.now()): Result | nul
       const products = PRODUCT_IDS.filter(p => p !== "ice" || s.cash >= 25000);
       const product = products[Math.floor(roll(s) * products.length)];
       const quantity = Math.max(40, Math.min(240, Math.round(Math.max(12000, s.cash * .65) / s.prices[product].wholesale / 10) * 10));
-      const deal: Deal = { id: `deal-${s.week}-${++s.logSeq}`, buyer, product, quantity, delivered: 0, payment: Math.round(quantity * s.prices[product].wholesale * (1.65 + roll(s) * .35)), bonus: 10000, offeredWeek: s.week, dueWeek: s.week + 2 + Math.floor(roll(s) * 3), status: "offered" };
+      const deal: Deal = { id: `deal-${s.week}-${++s.logSeq}`, buyer, product, quantity, delivered: 0, payment: Math.round(quantity * s.prices[product].wholesale * (1.65 + roll(s) * .35) * (1+specialistBonus(s,"deals"))), bonus: 10000, offeredWeek: s.week, dueWeek: s.week + 2 + Math.floor(roll(s) * 3), status: "offered" };
       e.deals = [...e.deals.filter(d => d.status === "active" || d.status === "offered"), ...e.deals.filter(d => d.status !== "active" && d.status !== "offered").slice(-15), deal];
       e.pending = { kind: "buyer", dealId: deal.id };
       log(s, `${character(buyer).name} called with a bulk order for ${quantity} ${PRODUCTS[product].name}.`);
@@ -88,7 +89,7 @@ export function deliverDeal(state: GameState, id: string): Result {
   if (quantity <= 0) return fail(`You need ${PRODUCTS[d.product].name} in your stash.`);
   s.stash[d.product] -= quantity; d.delivered += quantity;
   if (d.delivered === d.quantity) {
-    d.status = "completed"; e.completed++; s.cash += d.payment + d.bonus;
+    d.status = "completed"; e.completed++; rememberDeal(s,character(d.buyer).name); s.cash += d.payment + d.bonus;
     s.stats.earned += d.payment + d.bonus; s.stats.productSold += d.quantity;
     s.respect = Math.min(100, s.respect + 3);
     log(s, `${character(d.buyer).name}: order complete. $${d.payment.toLocaleString("en-US")} paid + $10,000 completion bonus.`, "gold");
@@ -160,6 +161,7 @@ export function resolveTalk(state: GameState, choiceId: string): Result {
   const s = structuredClone(state); s.cash -= choice.cash; s.stats.spent += choice.cash;
   s.respect = Math.min(100, Math.max(0, s.respect + choice.respect));
   for (const d of s.districts) if (d.owner === "player") d.loyalty = Math.min(100, d.loyalty + choice.loyalty);
+  rememberCrewChoice(s,choice.id as "pay"|"focus"|"listen");
   s.encounters!.pending = null; log(s, `${talk.talk.title} — ${choice.reply}`);
   return success(s);
 }

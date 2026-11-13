@@ -1,3 +1,5 @@
+import { garageEscapeBonus, medicalLosses, rememberEscape, rememberFight, specialistBonus } from "./empire";
+import { eventEffects } from "./world-events";
 import type { GameState } from "./types";
 import type { Result } from "./logic";
 
@@ -25,7 +27,7 @@ export const xpForLevel = (level: number) => Math.max(0, level * (level - 1) * 7
 export const combatOf = (s: GameState): CombatProfile => s.combat ?? { xp: 0, credits: 0, equipped: "fists", owned: ["fists"], wins: 0, losses: 0, escapes: 0, surrenders: 0, ambush: null };
 export function levelOf(s: GameState) { let level = 1; while (level < MAX_LEVEL && combatOf(s).xp >= xpForLevel(level + 1)) level++; return level; }
 export const weaponOf = (s: GameState) => WEAPONS.find(w => w.id === combatOf(s).equipped) ?? WEAPONS[0];
-export const combatMultiplier = (s: GameState) => 1 + weaponOf(s).bonus + (levelOf(s) - 1) * .04;
+export const combatMultiplier = (s: GameState) => 1 + weaponOf(s).bonus + (levelOf(s) - 1) * .04 + specialistBonus(s, "power");
 export const trainingCost = (s: GameState) => 25 + (levelOf(s) - 1) * 10;
 export function combatLog(s: GameState, text: string, tone: "gold" | "paper" | "blood" = "paper") {
   s.log.unshift({ id: ++s.logSeq, week: s.week, text, tone }); s.log = s.log.slice(0, 70);
@@ -36,6 +38,7 @@ export function grantFightRewards(s: GameState, won: boolean, opponents: number)
   const credits = won ? 8 + Math.min(12, opponents) : 2;
   c.xp = Math.min(xpForLevel(MAX_LEVEL), c.xp + xp); c.credits += credits;
   if (won) c.wins++; else c.losses++;
+  rememberFight(s, won);
   combatLog(s, `Fight rewards: +${xp} XP, +${credits} Street Credits.`, "gold");
   if (levelOf(s) > before) combatLog(s, `Level up! Combat level ${levelOf(s)}. New black-market gear may be available.`, "gold");
 }
@@ -74,12 +77,15 @@ export function trainCombat(state: GameState, paidCredits = 0): Result {
 function roll(s: GameState) { s.seed = (Math.imul(s.seed >>> 0, 1664525) + 1013904223) >>> 0; return s.seed / 4294967296; }
 export function ambushRisk(s: GameState, route: string[]) {
   const hostile = route.slice(1).filter(id => { const o = s.districts.find(d => d.id === id)?.owner; return o && o !== "player" && o !== "neutral"; }).length;
-  return Math.min(.42, .06 + (route.length - 1) * .025 + hostile * .025 + s.heat * .001);
+  const eventRisk = route.slice(1).reduce((n,id)=>n+eventEffects(s,id).risk,0) / Math.max(1,route.length-1);
+  const revenge = s.empire?.threats.some(t=>t.status==="pending"&&route.includes(t.region)) ? .08 : 0;
+  return Math.max(.02, Math.min(.65, .06 + (route.length - 1) * .025 + hostile * .025 + s.heat * .001 + eventRisk + revenge - specialistBonus(s,"escape")*.5));
 }
 export function planAmbush(s: GameState, route: string[], now: number, arrivesAt: number): Ambush | undefined {
   if (roll(s) >= ambushRisk(s, route)) return;
   return { origin: route[0], destination: route[route.length - 1], location: route[Math.min(route.length - 1, Math.max(1, Math.floor((route.length - 1) / 2)))], attackers: Math.max(2, Math.min(10, 2 + Math.floor(roll(s) * 3) + Math.floor(s.week / 5))), triggerAt: now + (arrivesAt - now) * .5 };
 }
+export const escapeChance = (s:GameState) => Math.min(.96, .6 + (levelOf(s)-1)*.015 + specialistBonus(s,"escape") + garageEscapeBonus(s));
 export function ambushOutlook(s: GameState) {
   const a = combatOf(s).ambush; if (!a) return "";
   const free = s.crewCounts.muscle - s.districts.reduce((n, d) => n + d.stationMuscle, 0);
@@ -104,14 +110,23 @@ export function resolveAmbush(state: GameState, choice: "run" | "fight" | "surre
     grantFightRewards(s, won, ambush.attackers);
     s.heat = Math.min(100, s.heat + (won ? 6 : 4));
     if (won) { const loot = 400 + ambush.attackers * 180; s.cash += loot; s.stats.earned += loot; report = `Ambush beaten. +$${loot.toLocaleString("en-US")}. Continuing your trip.`; }
-    else { const losses = Math.min(free, Math.max(1, Math.floor(ambush.attackers / 3))); s.crewCounts.muscle -= losses; report = `Ambush lost. ${losses} muscle lost. ${robbery(.12, .2)} Retreated to safety.`; }
+    else { const losses = Math.min(free, medicalLosses(s, Math.max(1, Math.floor(ambush.attackers / 3)))); s.crewCounts.muscle -= losses; report = `Ambush lost. ${losses} muscle lost. ${robbery(.12, .2)} Retreated to safety.`; }
   } else if (choice === "run") {
-    const escaped = roll(s) < Math.min(.9, .6 + (levelOf(s) - 1) * .015);
+    const escaped = roll(s) < escapeChance(s);
     if (escaped) { c.escapes++; report = "You escaped the ambush and returned to your starting block."; }
     else report = `Escape failed. ${robbery(.08, .12)} You got back to your starting block.`;
   } else { c.surrenders++; report = `You surrendered. ${robbery(.1, .25)} Returned to your starting block.`; }
+  if (choice !== "fight") rememberEscape(s, choice);
   combatLog(s, report, won ? "gold" : choice === "run" ? "paper" : "blood");
   if (won) s.cityMap = { locationId: ambush.location, report, order: { kind: "travel", route: [ambush.location, ambush.destination], startedAt: now, arrivesAt: now + 900, endsAt: now + 900, soldiers: 0 } };
   else s.cityMap = { locationId: ambush.origin, order: null, report };
   return { ok: true, state: s, fx: won ? "hit" : "bad" };
+}
+
+export function beginAmbushFight(state:GameState,now=Date.now()):Result {
+  const a=combatOf(state).ambush;if(!a||state.cityMap?.order||state.phase!=="play")return {ok:false,error:"No ambush is waiting for a fight."};
+  const s=structuredClone(state);const free=Math.max(0,s.crewCounts.muscle-s.districts.reduce((n,d)=>n+d.stationMuscle,0));
+  s.cityMap={locationId:a.location,report:"Fighting off the ambush…",order:{kind:"ambush",route:[a.location,a.location],startedAt:now,arrivesAt:now,endsAt:now+2600,soldiers:free}};
+  s.fightScene={id:`ambush-${s.week}-${s.logSeq}`,kind:"ambush",region:a.location,enemy:"Street attackers",allies:free+2,enemyPower:a.attackers*(1.05+s.week*.015),playerPower:(free+2)*combatMultiplier(s),weapon:weaponOf(s).name,level:levelOf(s),startedAt:now,endsAt:now+2600,status:"active",summary:"Your crew is fighting to get through.",dismissed:false};
+  return {ok:true,state:s,fx:"hit"};
 }

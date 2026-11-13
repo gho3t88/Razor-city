@@ -1,4 +1,7 @@
-import { buyWeapon, combatOf, equipWeapon, resolveAmbush, trainCombat, trainingCost } from "./combat";
+import { buyBusiness, upgradeBusiness, recruitSpecialist, supportSpecialist, payOffThreat } from "./empire";
+import { dismissFight } from "./fight-scene";
+import { refreshRegionEvents } from "./world-events";
+import { beginAmbushFight, buyWeapon, combatOf, equipWeapon, resolveAmbush, trainCombat, trainingCost } from "./combat";
 import { creditWallet, spendCredits } from "@/lib/credits";
 import { refreshRegionMarkets, tradeRegion } from "./region-economy";
 import { tickEncounters, decideDeal, deliverDeal, resolveTalk } from "./encounters";
@@ -45,6 +48,13 @@ interface RazorStore {
   billingBusy: boolean;
   premiumBalance: number;
   refreshWallet: () => Promise<void>;
+  buyBusiness: (region:string,type:string)=>void;
+  upgradeBusiness: (region:string)=>void;
+  recruitSpecialist: (id:string)=>void;
+  supportSpecialist: (id:string)=>void;
+  payOffThreat: (id:string)=>void;
+  dismissFight: ()=>void;
+  showFight: ()=>void;
   buyWeapon: (id: string) => void;
   equipWeapon: (id: string) => void;
   resolveAmbush: (choice: "run" | "fight" | "surrender") => void;
@@ -119,6 +129,7 @@ function readSave(): GameState | null {
     const parsed: unknown = JSON.parse(raw);
     if (!isGameState(parsed)) return null;
     const game = { ...parsed, districts: refreshDistrictNames(parsed.districts) };
+    refreshRegionEvents(game);
     refreshRegionMarkets(game);
     return game;
   } catch {
@@ -326,9 +337,16 @@ export const useRazor = create<RazorStore>((set, get) => ({
   },
 
   refreshWallet: async () => { try { const wallet = await creditWallet(); set({ premiumBalance: wallet.balance }); } catch { /* earned credits remain usable offline */ } },
+  buyBusiness: (region,type) => {const g=get().game;if(g)get().commit(buyBusiness(g,region,type));},
+  upgradeBusiness: region => {const g=get().game;if(g)get().commit(upgradeBusiness(g,region));},
+  recruitSpecialist: id => {const g=get().game;if(g)get().commit(recruitSpecialist(g,id));},
+  supportSpecialist: id => {const g=get().game;if(g)get().commit(supportSpecialist(g,id));},
+  payOffThreat: id => {const g=get().game;if(g)get().commit(payOffThreat(g,id));},
+  showFight: () => {const g=get().game;if(!g?.fightScene||get().billingBusy)return;const s=structuredClone(g);s.fightScene!.dismissed=false;persist(s);set({game:s});},
+  dismissFight: () => {const g=get().game;if(!g||get().billingBusy)return;const r=dismissFight(g);if(r.ok){persist(r.state);set({game:r.state});}},
   buyWeapon: id => { const g = get().game; if (g) get().commit(buyWeapon(g, id)); },
   equipWeapon: id => { const g = get().game; if (g) get().commit(equipWeapon(g, id)); },
-  resolveAmbush: choice => { const g = get().game; if (g) get().commit(resolveAmbush(g, choice)); },
+  resolveAmbush: choice => { const g = get().game; if (g) get().commit(choice==="fight"?beginAmbushFight(g):resolveAmbush(g, choice)); },
   trainCombat: async () => {
     const game = get().game; if (!game || get().billingBusy) return;
     const amount = Math.max(0, trainingCost(game) - combatOf(game).credits);
