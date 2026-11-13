@@ -5,6 +5,8 @@ import type { GameState, StartOpts } from "@/game/types";
 import type { Result } from "@/game/logic";
 import { cityMapOf, completeCityOrder, issueCityOrder } from "@/game/city-map";
 
+import { refreshDistrictNames } from "@/game/content";
+
 const SAVE_KEY = "razor-city-save-v1";
 const LEGACY_KEY = "razor-city-legacy-v1";
 const MUTE_KEY = "razor-city-muted";
@@ -97,7 +99,7 @@ function readSave(): GameState | null {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
-    return isGameState(parsed) ? parsed : null;
+    return isGameState(parsed) ? { ...parsed, districts: refreshDistrictNames(parsed.districts) } : null;
   } catch {
     return null;
   }

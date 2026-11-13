@@ -8,6 +8,9 @@ import type { GameState, Owner } from "@/game/types";
 const colors: Record<Owner, string> = {
   player: "#e0b15a", neutral: "#627d80", vultures: "#ee816f", lanterns: "#c6a2f5", saints: "#82b4e0", cobras: "#79c5a0",
 };
+// Neighborhood materials stay recognizable as faction ownership changes.
+const districtTones = ["#4d9ba5", "#c18b63", "#a37acb", "#c55b98", "#6c91b0", "#c79e51", "#6ba47b", "#529b91", "#ad6d51", "#b69251", "#468faf", "#a76869"];
+const roofTones = ["#64888c", "#a08067", "#846c9b", "#97627e", "#617b93", "#a28b63", "#688b70", "#527f78", "#926b58", "#8b7b5a", "#507a8d", "#8c6065"];
 const control = "min-h-11 rounded-md border border-line px-3 py-2 text-sm disabled:opacity-40";
 
 export function CityMap({ game, onManage, toast }: { game: GameState; onManage?: () => void; toast?: string | null }) {
@@ -89,12 +92,12 @@ export function CityMap({ game, onManage, toast }: { game: GameState; onManage?:
       <div ref={scroll} className="city-scroll" tabIndex={zoom ? 0 : undefined} aria-label="City map; zoom and drag to explore streets">
         <svg className={`city-svg ${zoom ? "city-zoom" : ""}`} viewBox="0 0 660 620" aria-label="Razor City district map">
           <defs>
-            <pattern id="water-lines" width="24" height="12" patternUnits="userSpaceOnUse"><path d="M0 6h12" stroke="#24464a" strokeWidth="1" /></pattern>
+            <pattern id="water-lines" width="24" height="12" patternUnits="userSpaceOnUse"><path d="M0 6h12" stroke="#36748a" strokeWidth="1" /></pattern>
             <pattern id="city-grain" width="12" height="12" patternUnits="userSpaceOnUse"><path d="M1 2h1m6 6h1" stroke="#98aaa0" strokeOpacity=".07" /></pattern>
           </defs>
-          <rect width="660" height="620" fill="#0a1d27" />
+          <rect width="660" height="620" fill="#103b50" />
           <rect width="660" height="620" fill="url(#water-lines)" />
-          <path d="M10 10L654 6 660 540 615 569 565 560 512 590 455 579 409 590 357 562 302 585 236 572 175 594 97 565 16 575Z" fill="#1b292c" stroke="#455b5b" strokeWidth="2" />
+          <path d="M10 10L654 6 660 540 615 569 565 560 512 590 455 579 409 590 357 562 302 585 236 572 175 594 97 565 16 575Z" fill="#263c40" stroke="#455b5b" strokeWidth="2" />
           <rect width="660" height="620" fill="url(#city-grain)" pointerEvents="none" />
           <text x="338" y="610" textAnchor="middle" className="city-water-label">HOLLOW HARBOR</text>
           <text x="627" y="26" fill="#94a8a6" fontSize="14">N ↑</text>
@@ -105,15 +108,15 @@ export function CityMap({ game, onManage, toast }: { game: GameState; onManage?:
             const color = colors[d.owner];
             return (
               <g key={d.id} className="city-region" role="button" tabIndex={0} aria-label={`${d.name}, ${d.owner === "neutral" ? "open" : d.owner === "player" ? "yours" : game.gangs[d.owner].name}`} aria-pressed={on} onClick={() => choose(d.id)} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); choose(d.id); } }}>
-                <polygon points={polygon} fill={color} fillOpacity={on ? ".19" : ".07"} stroke={on ? "#f3d291" : color} strokeOpacity={on ? .9 : .22} strokeWidth={on ? 2 : .7} strokeDasharray={on ? "7 4" : "3 6"} />
+                <polygon points={polygon} fill={districtTones[index]} fillOpacity={on ? ".56" : ".32"} stroke={on ? "#ffe1a2" : color} strokeOpacity={on ? 1 : .75} strokeWidth={on ? 2.5 : 1.4} strokeDasharray={on ? "7 4" : d.owner === "neutral" ? "3 6" : undefined} />
                 {Array.from({ length: 10 }, (_, b) => {
                   const side = b < 5 ? -1 : 1;
                   const bx = center.x - 65 + (b % 5) * 27 + ((index * 3 + b) % 5);
                   const by = center.y + side * 38 - 12;
                   const w = 15 + ((index + b * 3) % 9);
                   const h = 18 + ((index * 7 + b * 11) % 19);
-                  if ((index === 1 || index === 6) && b % 4 === 0) return <g key={b} pointerEvents="none"><ellipse cx={bx + 7} cy={by + 8} rx="11" ry="15" fill="#304a3d" /><circle cx={bx + 6} cy={by + 4} r="7" fill="#42624b" /></g>;
-                  return <g key={b} pointerEvents="none" transform={`rotate(${index % 2 ? -4 : 4},${bx},${by})`}><rect x={bx + 4} y={by + 5} width={w} height={h} fill="#070e13" opacity=".8" /><rect x={bx} y={by} width={w} height={h} fill={d.lab ? "#3c4b4c" : index < 4 ? "#3e474b" : "#334044"} stroke="#697373" strokeWidth=".6" /><path d={`M${bx + 3} ${by + 4}h${w - 6}m${3 - w} 5h${w - 6}`} stroke={color} strokeOpacity=".4" strokeWidth="1.2" /><rect x={bx + w / 2 - 3} y={by + h / 2} width="6" height="6" fill="#202d32" /></g>;
+                  if ((index === 1 || index === 6) && b % 4 === 0) return <g key={b} pointerEvents="none"><ellipse cx={bx + 7} cy={by + 8} rx="11" ry="15" fill="#265e46" /><circle cx={bx + 6} cy={by + 4} r="7" fill="#4d9164" /></g>;
+                  return <g key={b} pointerEvents="none" transform={`rotate(${index % 2 ? -4 : 4},${bx},${by})`}><rect x={bx + 4} y={by + 5} width={w} height={h} fill="#070e13" opacity=".8" /><rect x={bx} y={by} width={w} height={h} fill={roofTones[index]} stroke="#b5b6a1" strokeWidth=".6" /><path d={`M${bx + 3} ${by + 4}h${w - 6}m${3 - w} 5h${w - 6}`} stroke={color} strokeOpacity=".85" strokeWidth="1.2" /><rect x={bx + w / 2 - 3} y={by + h / 2} width="6" height="6" fill={b % 3 === 0 ? "#e9c77e" : "#293c44"} /></g>;
                 })}
 
               </g>
@@ -122,7 +125,7 @@ export function CityMap({ game, onManage, toast }: { game: GameState; onManage?:
           <g pointerEvents="none">
             {game.districts.flatMap(d => game.districts.filter(n => (n.col === d.col + 1 && n.row === d.row) || (n.row === d.row + 1 && n.col === d.col)).map(n => {
               const a = districtPoint(d), b = districtPoint(n);
-              return <g key={`${d.id}-${n.id}`}><path d={`M${a.x} ${a.y}L${b.x} ${b.y}`} stroke="#526366" strokeWidth="17" /><path d={`M${a.x} ${a.y}L${b.x} ${b.y}`} stroke="#182126" strokeWidth="14" /><path d={`M${a.x} ${a.y}L${b.x} ${b.y}`} stroke="#9c9b80" strokeWidth=".8" strokeDasharray="5 9" /></g>;
+              return <g key={`${d.id}-${n.id}`}><path d={`M${a.x} ${a.y}L${b.x} ${b.y}`} stroke="#81938b" strokeWidth="17" /><path d={`M${a.x} ${a.y}L${b.x} ${b.y}`} stroke="#273238" strokeWidth="14" /><path d={`M${a.x} ${a.y}L${b.x} ${b.y}`} stroke="#9c9b80" strokeWidth=".8" strokeDasharray="5 9" /></g>;
             }))}
             <path d="M27 40L39 194 23 370 41 538" stroke="#6a7976" strokeWidth="4" strokeDasharray="2 6" />
             {[100, 250, 405, 550].map((x, i) => <g key={x}><path d={`M${x} 555v34h25`} fill="none" stroke="#748485" strokeWidth="3" /><path d={`M${x} 580l28-18m-18 6v20`} stroke="#a2a080" fill="none" /><rect x={x + 7} y={552 + i % 2 * 4} width="28" height="10" fill="#4d6267" /></g>)}
@@ -130,7 +133,17 @@ export function CityMap({ game, onManage, toast }: { game: GameState; onManage?:
           <g pointerEvents="none">
             {game.districts.map(d => {
               const p = districtPoint(d);
-              return <g key={d.id}><rect x={p.x - 57} y={p.y - 73} width="114" height="22" rx="3" fill="#0a171d" opacity=".94" /><text x={p.x} y={p.y - 58} fill={d.id === selected.id ? "#ffe1a2" : "#e0e8dd"} textAnchor="middle" fontSize="14" fontWeight="700" letterSpacing="1">{d.short}</text><circle cx={p.x + 49} cy={p.y - 64} r="3" fill={colors[d.owner]} /></g>;
+              const words = d.short.split(" ");
+              const lines = words.length > 1 ? [words.slice(0, -1).join(" "), words[words.length - 1]] : [d.short];
+              const color = colors[d.owner];
+              return <g key={d.id}>
+                <rect x={p.x - 61} y={p.y - 82} width="122" height="36" rx="5" fill="#101e27" stroke={color} strokeOpacity=".75" />
+                <path d={`M${p.x - 55} ${p.y - 47}h110`} stroke={color} strokeWidth="2" />
+                <text x={p.x} fill={d.id === selected.id ? "#ffe1a2" : "#f1eee5"} textAnchor="middle" fontSize="12" fontWeight="700" letterSpacing=".7">
+                  {lines.map((line, i) => <tspan key={line} x={p.x} y={p.y - (lines.length === 1 ? 60 : 67) + i * 14}>{line}</tspan>)}
+                </text>
+                <circle cx={p.x + 54} cy={p.y - 76} r="2.5" fill={color} />
+              </g>;
             })}
           </g>
           <g pointerEvents="none">
