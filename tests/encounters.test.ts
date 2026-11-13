@@ -60,6 +60,7 @@ console.log("PASS Deadlines include the full final week; expired deals return re
 let t = state(tickEncounters(fresh(), 1000)); t.encounters!.nextBuyerAt = Number.MAX_SAFE_INTEGER;
 t = state(tickEncounters(t, t.encounters!.nextTalkAt));
 assert.equal(t.encounters!.pending?.kind, "talk");
+if (t.encounters!.pending?.kind === "talk") assert.ok(["banter", "rumor", "cut"].includes(t.encounters!.pending.talk.id), "A new crew must not discuss invented casualties, territory captures or existing contracts");
 assert.equal(tickEncounters(t, Number.MAX_SAFE_INTEGER), null, "Pending dialogues must not be overwritten");
 const cashBefore = t.cash, respect = t.respect, loyalty = t.districts.find(d => d.owner === "player")!.loyalty;
 t = state(resolveTalk(JSON.parse(JSON.stringify(t)), "pay"));

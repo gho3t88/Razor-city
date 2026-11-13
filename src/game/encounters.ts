@@ -127,9 +127,15 @@ function makeTalk(s: GameState): CrewTalk {
   ] as { id: string; title: string; lines: { speaker: CharacterId; text: string }[] }[];
   // Context first, then a shuffled roster of scenes; rotate the lead speaker too.
   const contextual = active ? "deal" : /Lost \d+ muscle|lose \d+ muscle/.test(recent) ? "losses" : /falls\./.test(recent) ? "expansion" : s.cash < 8000 ? "money" : s.heat >= 40 ? "heat" : null;
-  let scene = contextual && contextual !== e.lastTalk ? scenes.find(t => t.id === contextual) : undefined;
+  const eligible = scenes.filter(t => t.id === "losses" ? /Lost \d+ muscle|lose \d+ muscle/.test(recent)
+    : t.id === "expansion" ? s.stats.blocksTaken > 0
+    : t.id === "money" ? s.cash < 8000
+    : t.id === "heat" ? s.heat >= 40
+    : t.id === "deal" ? !!active : true);
+  let scene = contextual && contextual !== e.lastTalk ? eligible.find(t => t.id === contextual) : undefined;
   if (!scene) {
-    if (!e.talkBag.length) e.talkBag = scenes.map(t => t.id).filter(id => id !== e.lastTalk);
+    e.talkBag = e.talkBag.filter(id => eligible.some(t => t.id === id) && id !== e.lastTalk);
+    if (!e.talkBag.length) e.talkBag = eligible.map(t => t.id).filter(id => id !== e.lastTalk);
     const id = e.talkBag.splice(Math.floor(roll(s) * e.talkBag.length), 1)[0]; scene = scenes.find(t => t.id === id)!;
   }
   if (!e.crewBag.length) e.crewBag = ["jax", "mina", "saint", "taz"];
