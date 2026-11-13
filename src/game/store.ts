@@ -1,3 +1,5 @@
+import { buyWeapon, combatOf, equipWeapon, resolveAmbush, trainCombat, trainingCost } from "./combat";
+import { creditWallet, spendCredits } from "@/lib/credits";
 import { refreshRegionMarkets, tradeRegion } from "./region-economy";
 import { tickEncounters, decideDeal, deliverDeal, resolveTalk } from "./encounters";
 import { create } from "zustand";
@@ -12,6 +14,7 @@ import { refreshDistrictNames } from "@/game/content";
 const SAVE_KEY = "razor-city-save-v1";
 const LEGACY_KEY = "razor-city-legacy-v1";
 const MUTE_KEY = "razor-city-muted";
+const TRAINING_JOURNAL = "razor-paid-training-pending-v1";
 
 export interface Legacy {
   wins: number;
@@ -39,6 +42,13 @@ interface RazorStore {
   toast: string | null;
   pulse: number;
   muted: boolean;
+  billingBusy: boolean;
+  premiumBalance: number;
+  refreshWallet: () => Promise<void>;
+  buyWeapon: (id: string) => void;
+  equipWeapon: (id: string) => void;
+  resolveAmbush: (choice: "run" | "fight" | "surrender") => void;
+  trainCombat: () => Promise<void>;
   boot: () => void;
   startNew: (opts: StartOpts) => void;
   continueGame: () => void;
@@ -92,8 +102,9 @@ function persist(game: GameState | null) {
   try {
     if (!game) localStorage.removeItem(SAVE_KEY);
     else localStorage.setItem(SAVE_KEY, JSON.stringify(game));
+    return true;
   } catch {
-    /* ignore quota */
+    return false;
   }
 }
 
@@ -126,9 +137,28 @@ export const useRazor = create<RazorStore>((set, get) => ({
   toast: null,
   pulse: 0,
   muted: false,
+  billingBusy: false,
+  premiumBalance: 0,
 
   boot: () => {
     if (get().booted) return;
+    // Paid training has a durable journal, recovered before the player can load or start a run.
+    try {
+      const pending = localStorage.getItem(TRAINING_JOURNAL);
+      if (pending) {
+        set({ billingBusy: true });
+        const journal = JSON.parse(pending) as { id: string; amount: number; after: GameState };
+        if (!isGameState(journal.after) || !Number.isSafeInteger(journal.amount) || journal.amount < 1 || journal.amount > 215) throw new Error("Invalid training journal");
+        spendCredits(journal.id, journal.amount).then(wallet => {
+          if (!persist(journal.after)) throw new Error("Save unavailable");
+          localStorage.removeItem(TRAINING_JOURNAL);
+          set({ billingBusy: false, premiumBalance: wallet.balance, hasSave: true, saveMeta: metaOf(journal.after) });
+        }).catch((error: { code?: string }) => {
+          if (error.code === "INSUFFICIENT_CREDITS") { localStorage.removeItem(TRAINING_JOURNAL); set({ billingBusy: false, toast: "Training was not charged. Your previous save is ready." }); }
+          else set({ billingBusy: true, toast: "Recovering paid training. Reopen the game to retry." });
+        });
+      }
+    } catch { set({ billingBusy: true, toast: "Training recovery needs attention. Your save has been kept." }); }
     const save = readSave();
     let muted = false;
     try {
@@ -147,6 +177,7 @@ export const useRazor = create<RazorStore>((set, get) => ({
   },
 
   startNew: (opts) => {
+    if (get().billingBusy) return;
     unlockAudio();
     const game = createGame(opts);
     const legacy = { ...get().legacy, runs: get().legacy.runs + 1 };
@@ -165,6 +196,7 @@ export const useRazor = create<RazorStore>((set, get) => ({
   },
 
   continueGame: () => {
+    if (get().billingBusy) return;
     unlockAudio();
     const save = readSave();
     if (!save) {
@@ -176,11 +208,13 @@ export const useRazor = create<RazorStore>((set, get) => ({
   },
 
   abandon: () => {
+    if (get().billingBusy) return;
     persist(null);
     set({ screen: "start", game: null, hasSave: false, saveMeta: null, modal: "none", toast: null });
   },
 
   select: (id) => {
+    if (get().billingBusy) return;
     const game = get().game;
     if (!game) return;
     const result = setSelected(game, id);
@@ -190,6 +224,7 @@ export const useRazor = create<RazorStore>((set, get) => ({
   },
 
   commit: (result) => {
+    if (get().billingBusy) { set({ toast: "Please wait for your training payment to finish." }); return; }
     if (get().game && cityMapOf(get().game!).order) {
       set({ toast: "Your crew is carrying out an order. Wait for it to finish." });
       return;
@@ -231,6 +266,7 @@ export const useRazor = create<RazorStore>((set, get) => ({
   closeWeek: () => {
     const game = get().game;
     if (!game) return;
+    if (combatOf(game).ambush) { set({ toast: "Resolve the ambush first." }); return; }
     if (game.encounters?.pending) { set({ toast: "Answer your contact first." }); return; }
     get().commit(endWeek(game));
   },
@@ -249,7 +285,7 @@ export const useRazor = create<RazorStore>((set, get) => ({
 
   grantAdReward: () => {
     const game = get().game;
-    if (!game || game.phase !== "play" || cityMapOf(game).order) return false;
+    if (!game || game.phase !== "play" || combatOf(game).ambush || cityMapOf(game).order) return false;
     const key = `razor-city-ad-reward-week-${game.week}`;
     try {
       if (localStorage.getItem(key) === "1") {
@@ -289,10 +325,36 @@ export const useRazor = create<RazorStore>((set, get) => ({
     get().commit(result);
   },
 
+  refreshWallet: async () => { try { const wallet = await creditWallet(); set({ premiumBalance: wallet.balance }); } catch { /* earned credits remain usable offline */ } },
+  buyWeapon: id => { const g = get().game; if (g) get().commit(buyWeapon(g, id)); },
+  equipWeapon: id => { const g = get().game; if (g) get().commit(equipWeapon(g, id)); },
+  resolveAmbush: choice => { const g = get().game; if (g) get().commit(resolveAmbush(g, choice)); },
+  trainCombat: async () => {
+    const game = get().game; if (!game || get().billingBusy) return;
+    const amount = Math.max(0, trainingCost(game) - combatOf(game).credits);
+    const result = trainCombat(game, amount);
+    if (!result.ok) { get().commit(result); return; }
+    if (!amount) { get().commit(result); return; }
+    if (amount > get().premiumBalance) { set({ toast: "Win fights to earn Street Credits, or visit the credit shop." }); return; }
+    const id = `training_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
+    try { localStorage.setItem(TRAINING_JOURNAL, JSON.stringify({ id, amount, after: result.state })); }
+    catch { set({ toast: "Could not save your training. No credits charged." }); return; }
+    set({ billingBusy: true });
+    try {
+      const wallet = await spendCredits(id, amount);
+      if (!persist(result.state)) throw new Error("Save unavailable");
+      localStorage.removeItem(TRAINING_JOURNAL);
+      set({ billingBusy: false, premiumBalance: wallet.balance });
+      get().commit(result);
+    } catch (error) {
+      if ((error as { code?: string }).code === "INSUFFICIENT_CREDITS") { localStorage.removeItem(TRAINING_JOURNAL); set({ billingBusy: false, toast: "Not enough purchased credits. No credits charged." }); }
+      else set({ billingBusy: true, toast: "Training payment is being recovered. Reopen the game to retry safely." });
+    }
+  },
   tradeRegion: (region, product, quantity, side) => { const game = get().game; if (game) get().commit(tradeRegion(game, region, product, quantity, side)); },
   tickContacts: () => {
     const game = get().game;
-    if (!game || get().modal !== "none") return;
+    if (!game || get().billingBusy || combatOf(game).ambush || get().modal !== "none") return;
     const result = tickEncounters(game);
     if (!result?.ok) return;
     persist(result.state);

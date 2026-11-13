@@ -1,3 +1,4 @@
+import { combatOf } from "./combat";
 import { PRODUCTS, PRODUCT_IDS } from "./content";
 import type { GameState, ProductId } from "./types";
 import type { Result } from "./logic";
@@ -37,7 +38,7 @@ function log(s: GameState, text: string, tone: "gold" | "paper" | "blood" = "pap
   s.log.unshift({ id: ++s.logSeq, week: s.week, text, tone }); s.log = s.log.slice(0, 70);
 }
 function ready(s: GameState): string | null {
-  return s.phase !== "play" ? "Wait until the week is open." : s.cityMap?.order ? "Wait for your crew's order to finish." : null;
+  return combatOf(s).ambush ? "Resolve the ambush first." : s.phase !== "play" ? "Wait until the week is open." : s.cityMap?.order ? "Wait for your crew's order to finish." : null;
 }
 function success(s: GameState, cash = false): Result { return { ok: true, state: s, fx: cash ? "cash" : "tick" }; }
 const fail = (error: string): Result => ({ ok: false, error });

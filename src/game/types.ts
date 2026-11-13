@@ -93,6 +93,7 @@ export interface WeekReport {
 }
 
 export interface GameState {
+  combat?: import("./combat").CombatProfile;
   regionMarkets?: Record<string, import("./region-economy").RegionEconomy>;
   encounters?: import("./encounters").Encounters;
   cityMap?: CityMapState;
@@ -133,6 +134,7 @@ export interface GameState {
 }
 
 export interface CityOrder {
+  ambush?: import("./combat").Ambush;
   kind: "travel" | "attack";
   route: string[];
   startedAt: number;

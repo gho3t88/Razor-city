@@ -5,7 +5,7 @@ import { money } from "@/game/logic";
 import { useRazor } from "@/game/store";
 import type { GameState } from "@/game/types";
 
-function ContactDialog({ title, children, close }: { title: string; children: ReactNode; close?: () => void }) {
+export function ContactDialog({ title, children, close }: { title: string; children: ReactNode; close?: () => void }) {
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;

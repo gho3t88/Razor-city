@@ -1,3 +1,4 @@
+import { combatOf, levelOf, weaponOf } from "@/game/combat";
 import { regionMarket } from "@/game/region-economy";
 import { PRODUCTS } from "@/game/content";
 import { useEffect, useRef, useState } from "react";
@@ -15,7 +16,7 @@ const districtTones = ["#4d9ba5", "#c18b63", "#a37acb", "#c55b98", "#6c91b0", "#
 const roofTones = ["#64888c", "#a08067", "#846c9b", "#97627e", "#617b93", "#a28b63", "#688b70", "#527f78", "#926b58", "#8b7b5a", "#507a8d", "#8c6065"];
 const control = "min-h-11 rounded-md border border-line px-3 py-2 text-sm disabled:opacity-40";
 
-export function CityMap({ game, onManage, onTrade, toast }: { game: GameState; onManage?: () => void; onTrade?: () => void; toast?: string | null }) {
+export function CityMap({ game, onManage, onTrade, onGear, toast }: { game: GameState; onManage?: () => void; onTrade?: () => void; onGear?: () => void; toast?: string | null }) {
   const scroll = useRef<HTMLDivElement>(null);
   const select = useRazor(s => s.select);
   const travel = useRazor(s => s.travel);
@@ -33,7 +34,7 @@ export function CityMap({ game, onManage, onTrade, toast }: { game: GameState; o
   const localMarket = regionMarket(game, selected.id);
   const route = order?.route ?? waypointRoute(game, stops.length ? stops : [selected.id]);
   const point = crewPoint(game, reducedMotion && order ? (now >= order.arrivesAt ? order.arrivesAt : order.startedAt) : now);
-  const busy = !!order;
+  const busy = !!order || !!combatOf(game).ambush;
   const fighting = order?.kind === "attack" && now >= order.arrivesAt;
   const free = freeMuscle(game);
   const send = Math.min(soldiers, free);
@@ -83,6 +84,7 @@ export function CityMap({ game, onManage, onTrade, toast }: { game: GameState; o
     <div className="city-shell">
       <div className="city-heading">
         <span className="city-eyebrow">CITY OPERATIONS</span>
+        <button type="button" className={`${control} city-gear-button`} onClick={onGear} aria-label="Black market and training">Gear · L{levelOf(game)}</button>
         <details className="city-key"><summary>Factions</summary><div>{Object.entries(colors).map(([id, color]) => <span key={id}><i style={{ background: color }} />{id === "player" ? "You" : id === "neutral" ? "Open" : game.gangs[id as keyof typeof game.gangs].name}</span>)}</div></details>
         <button type="button" className={control} aria-pressed={zoom} onClick={() => {
           setZoom(!zoom);
@@ -186,14 +188,14 @@ export function CityMap({ game, onManage, onTrade, toast }: { game: GameState; o
           <button type="button" className={control} onClick={onManage}>Manage</button>
         </div>
         {planning && <div className="city-plan-row"><span>Tap stops in order ({stops.length}/6)</span>{stops.length > 0 && <button type="button" onClick={() => setStops(stops.slice(0, -1))}>Undo</button>}</div>}
-        {isGangId(selected.owner) && <div className="city-attack-row">
+        {selected.owner !== "player" && <div className="city-attack-row">
           <label>Soldiers <select aria-label="Attack soldiers" value={send} disabled={busy || !free} onChange={e => setSoldiers(Number(e.target.value))}>{free ? Array.from({ length: free }, (_, i) => <option key={i} value={i + 1}>{i + 1}</option>) : <option value={0}>0</option>}</select></label>
           <button type="button" className={`${control} border-blood text-blood`} disabled={busy || game.phase !== "play" || !free || game.ap < 1 || !adjacentToPlayer(game, selected.id)} onClick={() => { orderAttack(selected.id, send); setStops([]); setPlanning(false); }}>Attack · 1 move</button>
           <span>{adjacentToPlayer(game, selected.id) ? hitOutlook(game, selected.id, send) : "Border required"}</span>
         </div>}
         <div className={`city-readout ${toast ? "city-error" : ""}`} role="status" aria-live="polite">
           <span className={`city-live-dot ${fighting ? "battle" : ""}`} />
-          <span>{toast ?? (busy ? `${fighting ? "Fighting in" : "Moving to"} ${target?.name} · ${Math.max(0, Math.ceil((order.endsAt - now) / 1000))}s` : map.report ?? "Tap a region. Travel scouts; attacks capture.")}</span>
+          <span>{toast ?? (order ? `${fighting ? "Fighting in" : "Moving to"} ${target?.name} · ${Math.max(0, Math.ceil((order.endsAt - now) / 1000))}s` : map.report ?? "Tap a region. Travel scouts; attacks capture.")}</span>
         </div>
       </div>
     </div>

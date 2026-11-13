@@ -40,6 +40,7 @@ try {
   await page.getByRole("button", { name: "Blackwater, open", exact: true }).click();
   await page.getByRole("button", { name: "Trade", exact: true }).click();
   assert.equal(await page.locator(".market-sell").first().isDisabled(), true);
+  await page.evaluate(async () => { const { useRazor } = await import("/src/game/store.ts"); const g = structuredClone(useRazor.getState().game); g.seed = 42; useRazor.setState({ game: g }); });
   await page.getByRole("button", { name: "Travel to Blackwater", exact: true }).click();
   await page.getByText("Crew arrived at Blackwater.", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Trade", exact: true }).click();

@@ -1,3 +1,4 @@
+import { combatMultiplier, combatOf, grantFightRewards } from "./combat";
 import { regionMarket, refreshRegionMarkets, consumeLocalDemand } from "./region-economy";
 import { advanceEncounters } from "./encounters";
 import { GANG_IDS, PRODUCTS, PRODUCT_IDS, WIN_BLOCKS, WIN_RESPECT, WIN_WORTH, makeDistricts, makeGangs } from "@/game/content";
@@ -201,6 +202,7 @@ function fail(error: string): Result {
 }
 
 function spendAp(state: GameState): string | null {
+  if (combatOf(state).ambush) return "Resolve the ambush first.";
   if (state.phase !== "play") return "Wait until the week is open.";
   if (state.ap < 1) return "No moves left. Close the week.";
   state.ap -= 1;
@@ -302,7 +304,7 @@ export function previewSales(state: GameState): { lines: SaleLine[]; cash: numbe
 export function hitOutlook(state: GameState, districtId: string, commit: number): string {
   const d = districtById(state, districtId);
   if (!d) return "";
-  const mid = commit * (5.5 + state.respect / 30);
+  const mid = commit * (5.5 + state.respect / 30) * combatMultiplier(state);
   const ratio = mid / Math.max(1, d.defense);
   if (ratio > 1.35) return "Favored";
   if (ratio > 0.95) return "Even";
@@ -405,6 +407,7 @@ export function setFocus(state: GameState, id: string, focus: ProductId | "auto"
 }
 
 export function buy(state: GameState, product: ProductId, qty: number): Result {
+  if (combatOf(state).ambush) return fail("Resolve the ambush first.");
   if (state.phase !== "play") return fail("The market is shut.");
   const next = clone(state);
   const price = next.prices[product].wholesale;
@@ -595,10 +598,10 @@ export function shake(state: GameState, id: string): Result {
 export function hit(state: GameState, id: string, commit: number): Result {
   const next = clone(state);
   const d = districtById(next, id);
-  if (!d || !isGangId(d.owner)) return fail("Hit a rival block.");
+  if (!d || d.owner === "player") return fail("Fight for a rival or unclaimed block.");
   if (!adjacentToPlayer(next, id)) return fail("No approach from your blocks.");
-  const gang = next.gangs[d.owner];
-  if (!gang.alive) return fail("That crew is already gone.");
+  const gang = isGangId(d.owner) ? next.gangs[d.owner] : null;
+  if (gang && !gang.alive) return fail("That crew is already gone.");
   const send = Math.floor(commit);
   if (send < 1) return fail("Send at least one soldier.");
   if (send > freeMuscle(next)) return fail("That muscle is already stationed.");
@@ -606,16 +609,18 @@ export function hit(state: GameState, id: string, commit: number): Result {
   if (ap) return fail(ap);
   next.loud = true;
   const rng = roller(next);
-  const atk = send * (5.5 + next.respect / 30) * (0.72 + rng() * 0.55);
+  const atk = send * (5.5 + next.respect / 30) * combatMultiplier(next) * (0.72 + rng() * 0.55);
   const def = d.defense;
   if (atk > def) {
     const losses = Math.min(send, Math.max(1, Math.round(send * (0.1 + rng() * 0.16))));
     next.crewCounts.muscle = Math.max(0, next.crewCounts.muscle - losses);
     clampStations(next);
-    const wasHome = d.id === gang.home;
-    gang.muscle = Math.max(0, gang.muscle - Math.max(2, Math.round(send * 0.4)));
-    gang.relation = clamp(Math.min(gang.relation, -50) - (wasHome ? 40 : 18), -100, 80);
-    gang.truceWeeks = 0;
+    const wasHome = d.id === gang?.home;
+    if (gang) {
+      gang.muscle = Math.max(0, gang.muscle - Math.max(2, Math.round(send * 0.4)));
+      gang.relation = clamp(Math.min(gang.relation, -50) - (wasHome ? 40 : 18), -100, 80);
+      gang.truceWeeks = 0;
+    }
     d.owner = "player";
     d.corners = 1;
     d.loyalty = 40;
@@ -628,17 +633,18 @@ export function hit(state: GameState, id: string, commit: number): Result {
     next.respect = clamp(next.respect + 6, 0, 100);
     next.stats.blocksTaken += 1;
     const homeLine = wasHome ? " You took their house." : "";
+    grantFightRewards(next, true, Math.max(1, Math.round(def / 6)));
     pushLog(next, `${d.name} falls. Lost ${losses} muscle.${homeLine}`, "blood");
     return finish(next, "hit");
   }
   const losses = Math.min(send, Math.max(1, Math.round(send * (0.34 + rng() * 0.28))));
   next.crewCounts.muscle = Math.max(0, next.crewCounts.muscle - losses);
   clampStations(next);
-  gang.relation = clamp(gang.relation - 14, -100, 80);
-  gang.truceWeeks = 0;
+  if (gang) { gang.relation = clamp(gang.relation - 14, -100, 80); gang.truceWeeks = 0; }
   next.heat = clamp(next.heat + 10, 0, 100);
   next.respect = clamp(next.respect - 2, 0, 100);
-  pushLog(next, `${gang.name} hold ${d.name}. You lose ${losses} muscle.`, "blood");
+  grantFightRewards(next, false, Math.max(1, Math.round(def / 6)));
+  pushLog(next, `${gang?.name ?? "Local defenders"} hold ${d.name}. You lose ${losses} muscle.`, "blood");
   return finish(next, "hit");
 }
 
@@ -941,6 +947,7 @@ function raid(state: GameState, rng: () => number, bonusHeat = 0) {
 }
 
 export function endWeek(state: GameState): Result {
+  if (combatOf(state).ambush) return fail("Resolve the ambush before closing the week.");
   if (state.phase !== "play") return fail("The week is already closed.");
   const next = clone(state);
   const rng = roller(next);

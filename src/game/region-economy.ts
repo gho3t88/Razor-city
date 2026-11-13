@@ -1,3 +1,4 @@
+import { combatOf } from "./combat";
 import { PRODUCTS, PRODUCT_IDS } from "./content";
 import type { District, GameState, ProductId } from "./types";
 import type { Result } from "./logic";
@@ -75,6 +76,7 @@ export function consumeLocalDemand(s: GameState, region: string, product: Produc
   s.regionMarkets = { ...s.regionMarkets, [region]: e };
 }
 export function tradeRegion(state: GameState, region: string, product: ProductId, quantity: number, side: "buy" | "sell"): Result {
+  if (combatOf(state).ambush) return { ok: false, error: "Resolve the ambush first." };
   if (state.phase !== "play") return { ok: false, error: "Wait until the week is open." };
   if (state.cityMap?.order) return { ok: false, error: "Finish traveling before trading." };
   const location = state.cityMap?.locationId ?? state.districts.find(d => d.owner === "player")?.id ?? "hollow";

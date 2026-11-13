@@ -1,3 +1,5 @@
+import { CombatCenter, AmbushPopup } from "./combat-center";
+import { combatOf, levelOf, weaponOf } from "@/game/combat";
 import { RegionMarket } from "./region-market";
 import { regionMarket } from "@/game/region-economy";
 import { useEffect, useState, type ReactNode } from "react";
@@ -102,6 +104,8 @@ function StartScreen() {
   const hasSave = useRazor((s) => s.hasSave);
   const saveMeta = useRazor((s) => s.saveMeta);
   const legacy = useRazor((s) => s.legacy);
+  const billingBusy = useRazor(s => s.billingBusy);
+  const recoveryToast = useRazor(s => s.toast);
   const [boss, setBoss] = useState("Reyes");
   const [crew, setCrew] = useState("Hollow Kings");
   const [difficulty, setDifficulty] = useState<"street" | "war">("street");
@@ -201,15 +205,16 @@ function StartScreen() {
               <span className="mt-0.5 block text-xs font-normal opacity-80">Hungrier gangs, hotter cops</span>
             </button>
           </div>
-          <button type="submit" className={`${btnGold} w-full font-display text-lg tracking-wide`}>
+          <button type="submit" disabled={billingBusy} className={`${btnGold} w-full font-display text-lg tracking-wide`}>
             Take the docks
           </button>
           {hasSave && saveMeta ? (
-            <button type="button" onClick={continueGame} className={`${btnGhost} mt-2 w-full`}>
+            <button type="button" disabled={billingBusy} onClick={continueGame} className={`${btnGhost} mt-2 w-full`}>
               Continue {saveMeta.crew} · week {saveMeta.week} · {money(saveMeta.cash)}
               {saveMeta.phase === "won" ? " · crowned" : saveMeta.phase === "lost" ? " · finished" : ""}
             </button>
           ) : null}
+          {billingBusy && <p className="mt-3 text-sm text-gold">{recoveryToast || "Recovering paid training…"}</p>}
           <div className="mt-3 text-center"><TipSupport /></div>
         </form>
       </div>
@@ -228,6 +233,8 @@ function PlayScreen() {
   const clearToast = useRazor((s) => s.clearToast);
   const closeWeek = useRazor((s) => s.closeWeek);
   const tickContacts = useRazor(s => s.tickContacts);
+  const billingBusy = useRazor(s => s.billingBusy);
+  const [combatOpen, setCombatOpen] = useState(false);
   const [tradeOpen, setTradeOpen] = useState(false);
   const [contactsOpen, setContactsOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
@@ -252,17 +259,17 @@ function PlayScreen() {
   }, [game?.cityMap?.order]);
 
   useEffect(() => {
-    if (inspectorOpen || settingsOpen || contactsOpen || tradeOpen || modal !== "none") return;
+    if (inspectorOpen || settingsOpen || contactsOpen || tradeOpen || combatOpen || modal !== "none") return;
     const tick = () => { if (document.visibilityState === "visible") tickContacts(); };
     tick();
     const timer = window.setInterval(tick, 1000);
     return () => window.clearInterval(timer);
-  }, [tickContacts, inspectorOpen, settingsOpen, contactsOpen, tradeOpen, modal]);
+  }, [tickContacts, inspectorOpen, settingsOpen, contactsOpen, tradeOpen, combatOpen, modal]);
 
   if (!game) return null;
   const selected = game.districts.find((d) => d.id === game.selectedId) ?? game.districts[0];
   const preview = previewSales(game);
-  const busy = !!cityMapOf(game).order;
+  const busy = !!cityMapOf(game).order || !!combatOf(game).ambush;
   const playing = game.phase === "play";
 
   return (
@@ -280,7 +287,7 @@ function PlayScreen() {
         <span><strong>{game.ap}/{game.maxAp}</strong><small>moves</small></span>
       </div>
       <section className="game-map-space" aria-label="City operations">
-        <CityMap game={game} onManage={() => setInspectorOpen(true)} onTrade={() => setTradeOpen(true)} toast={toast} />
+        <CityMap game={game} onManage={() => setInspectorOpen(true)} onTrade={() => setTradeOpen(true)} onGear={() => setCombatOpen(true)} toast={toast} />
       </section>
       <nav className="game-bottom" aria-label="Empire actions">
         <button type="button" disabled={!playing || busy} onClick={() => setModal("market")}><Store size={18} />Market</button>
@@ -292,14 +299,18 @@ function PlayScreen() {
         <p className="text-paper">{game.crew} · {game.boss}</p>
         <p className="mt-2 text-sm text-mute">{game.crewCounts.muscle} muscle · {game.crewCounts.dealers} dealers · {game.strikes}/3 police strikes</p>
         <p className="mt-2 text-sm text-mute">Weekly sales forecast: {money(preview.cash)} · +{Math.round(preview.heat)} heat</p>
+        <button type="button" className="combat-opening mt-4" onClick={() => { setSettingsOpen(false); setCombatOpen(true); }}>Black Market & Training</button>
         <div className="my-4"><TipSupport /></div>
         <button type="button" className={btnGhost} onClick={() => { void showPrivacyOptions(); }}>Privacy choices</button>
       </Sheet>}
 
+      {combatOpen && <CombatCenter game={game} close={() => setCombatOpen(false)} />}
+      <AmbushPopup game={game} />
+      {billingBusy && <div className="training-recovery" role="status"><p>{toast || "Saving training. Please wait…"}</p></div>}
       {tradeOpen && <RegionMarket game={game} close={() => setTradeOpen(false)} />}
       {contactsOpen && <ContactsPanel game={game} close={() => setContactsOpen(false)} />}
       <ContactPopup game={game} />
-      {modal === "market" && playing ? <MarketSheet game={game} /> : null}
+      {modal === "market" && playing ? <MarketSheet game={game} onGear={() => { setModal("none"); setCombatOpen(true); }} /> : null}
       {modal === "ledger" ? <LedgerSheet game={game} /> : null}
       {game.phase === "event" && game.pending ? <EventSheet /> : null}
       {game.phase === "summary" && game.report ? <SummarySheet /> : null}
@@ -666,7 +677,7 @@ function Sheet({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
-function MarketSheet({ game }: { game: GameState }) {
+function MarketSheet({ game, onGear }: { game: GameState; onGear: () => void }) {
   const commit = useRazor((s) => s.commit);
   const setModal = useRazor((s) => s.setModal);
   const grantAdReward = useRazor((s) => s.grantAdReward);
@@ -680,6 +691,7 @@ function MarketSheet({ game }: { game: GameState }) {
   };
   return (
     <Sheet title="WHOLESALE" onClose={() => setModal("none")}>
+      <button type="button" className="combat-opening" onClick={onGear}>Black Market & Training · Level {levelOf(game)}</button>
       <p className="mb-3 text-sm text-mute">Buying is free of moves. Prices drift every week. You hold the stash, corners spend it.</p>
       <button type="button" disabled={adBusy} className={`${btnGold} mb-3 w-full`} onClick={claimSponsorBonus}>
         {adBusy ? "Loading sponsor…" : "Watch ad · get $1,000 bonus"}

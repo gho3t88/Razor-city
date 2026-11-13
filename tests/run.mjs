@@ -4,6 +4,7 @@ try {
   await server.ssrLoadModule("/tests/city-map.test.ts");
   await server.ssrLoadModule("/tests/encounters.test.ts");
   await server.ssrLoadModule("/tests/region-economy.test.ts");
+  await server.ssrLoadModule("/tests/combat.test.ts");
 } finally {
   await server.close();
 }

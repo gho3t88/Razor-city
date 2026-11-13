@@ -1,3 +1,4 @@
+import { combatOf, planAmbush } from "./combat";
 import { visitRegionMarket } from "./region-economy";
 import { hit, neighborsOf } from "./logic";
 import type { Result } from "./logic";
@@ -42,6 +43,7 @@ export function waypointRoute(game: GameState, stops: string[]): string[] {
 export function issueCityOrder(game: GameState, stops: string[], soldiers = 0, now = Date.now()): Result {
   const map = cityMapOf(game);
   if (game.phase !== "play") return { ok: false, error: "Wait until the week is open." };
+  if (combatOf(game).ambush) return { ok: false, error: "Resolve the ambush first." };
   if (map.order) return { ok: false, error: "Wait for your crew to finish its order." };
   if (!stops.length || stops.length > 6) return { ok: false, error: "Choose up to six waypoints." };
   const attack = soldiers > 0;
@@ -61,9 +63,10 @@ export function issueCityOrder(game: GameState, stops: string[], soldiers = 0, n
   if (!attack && route.length < 2) return { ok: false, error: "Your crew is already there." };
   const arrivesAt = now + Math.max(1, route.length - 1) * STREET_MS;
   const next = structuredClone(game);
+  const ambush = !attack ? planAmbush(next, route, now, arrivesAt) : undefined;
   next.cityMap = {
     locationId: map.locationId,
-    order: { kind: attack ? "attack" : "travel", route, startedAt: now, arrivesAt, endsAt: arrivesAt + (attack ? BATTLE_MS : 0), soldiers },
+    order: { kind: attack ? "attack" : "travel", ambush, route, startedAt: now, arrivesAt, endsAt: arrivesAt + (attack ? BATTLE_MS : 0), soldiers },
   };
   return { ok: true, state: next, fx: "tick" };
 }
@@ -71,7 +74,14 @@ export function issueCityOrder(game: GameState, stops: string[], soldiers = 0, n
 export function completeCityOrder(game: GameState, now = Date.now()): Result | null {
   const map = cityMapOf(game);
   const order = map.order;
-  if (!order || now < order.endsAt) return null;
+  if (!order) return null;
+  if (order.ambush && now >= order.ambush.triggerAt) {
+    const next = structuredClone(game);
+    next.combat = { ...structuredClone(combatOf(next)), ambush: order.ambush };
+    next.cityMap = { locationId: order.ambush.location, order: null, report: "Ambush! Choose Run, Fight or Surrender." };
+    return { ok: true, state: next, fx: "raid" };
+  }
+  if (now < order.endsAt) return null;
   const target = order.route[order.route.length - 1];
   const name = game.districts.find(d => d.id === target)?.name ?? target;
   if (order.kind === "travel") {
