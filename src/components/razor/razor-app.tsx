@@ -224,6 +224,8 @@ function PlayScreen() {
   const toggleMute = useRazor((s) => s.toggleMute);
   const clearToast = useRazor((s) => s.clearToast);
   const closeWeek = useRazor((s) => s.closeWeek);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [shaking, setShaking] = useState(false);
 
   useEffect(() => {
@@ -239,6 +241,10 @@ function PlayScreen() {
     return () => window.clearTimeout(t);
   }, [pulse]);
 
+  useEffect(() => {
+    if (game?.cityMap?.order) setInspectorOpen(false);
+  }, [game?.cityMap?.order]);
+
   if (!game) return null;
   const selected = game.districts.find((d) => d.id === game.selectedId) ?? game.districts[0];
   const preview = previewSales(game);
@@ -246,133 +252,34 @@ function PlayScreen() {
   const playing = game.phase === "play";
 
   return (
-    <main className={`safe-top min-h-dvh bg-ink ${shaking ? "shake" : ""}`}>
-      <header className="border-b border-line bg-panel">
-        <div className="mx-auto flex max-w-6xl items-start justify-between gap-3 px-3 py-3">
-          <div>
-            <p className="font-display text-2xl leading-none tracking-wide text-gold">RAZOR CITY</p>
-            <p className="mt-1 text-sm text-paper">
-              {game.crew} · {game.boss}
-            </p>
-            <button
-              type="button"
-              onClick={() => { void showPrivacyOptions(); }}
-              className="mt-1 text-xs text-mute underline underline-offset-4"
-            >
-              Privacy choices
-            </button>
-          </div>
-          <div className="flex items-start gap-2">
-            <div className="text-right">
-              <p className="font-display text-2xl leading-none">WK {String(game.week).padStart(2, "0")}</p>
-              <p className="text-xs tracking-widest text-mute">{game.difficulty === "war" ? "WAR" : "STREET"}</p>
-            </div>
-            <TipSupport />
-            <button type="button" aria-label={muted ? "Unmute" : "Mute"} onClick={toggleMute} className={`${btnGhost} px-3`}>
-              {muted ? <VolumeX className="size-5" /> : <Volume2 className="size-5" />}
-            </button>
-          </div>
-        </div>
-        <div className="mx-auto grid max-w-6xl grid-cols-2 gap-2 px-3 pb-3 sm:grid-cols-4">
-          <Stat icon={<Coins className="size-4 text-gold" />} label="Cash" value={money(game.cash)} />
-          <div className="rounded-md border border-line bg-ink px-3 py-2">
-            <div className="flex items-center justify-between text-xs text-mute">
-              <span className="inline-flex items-center gap-1">
-                <Flame className={`size-4 ${game.heat >= 60 ? "text-blood heat-hot" : "text-gold"}`} /> Heat
-              </span>
-              <span className="text-paper">{Math.round(game.heat)}</span>
-            </div>
-            <div
-              className="mt-2 h-2 overflow-hidden rounded-full bg-panel-2"
-              role="meter"
-              aria-label="Police heat"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={Math.round(game.heat)}
-            >
-              <div
-                className={`h-full ${game.heat >= 60 ? "bg-blood" : "bg-gold"}`}
-                style={{ width: `${Math.max(0, Math.min(100, game.heat))}%` }}
-              />
-            </div>
-            <p className="mt-1 text-xs text-mute">
-              Strikes {game.strikes}/3
-              {game.heat >= 48 ? " · cool it or the raid comes" : ""}
-            </p>
-          </div>
-          <Stat icon={<Shield className="size-4 text-paper" />} label="Respect" value={String(game.respect)} />
-          <div className="rounded-md border border-line bg-ink px-3 py-2">
-            <p className="text-xs text-mute">Moves</p>
-            <p className="font-display text-xl leading-none text-paper">
-              {game.ap}
-              <span className="text-mute">/{game.maxAp}</span>
-            </p>
-            <p className="mt-1 text-xs text-mute">
-              {game.crewCounts.muscle} muscle · {game.crewCounts.dealers} dealers
-            </p>
-          </div>
-        </div>
+    <main className={`game-viewport ${shaking ? "shake" : ""}`}>
+      <header className="game-topbar">
+        <div className="game-brand"><strong>RAZOR CITY</strong><span>WK {game.week} · {game.difficulty.toUpperCase()}</span></div>
+        <button type="button" className="game-icon" aria-label={muted ? "Unmute" : "Mute"} onClick={toggleMute}>{muted ? <VolumeX size={19} /> : <Volume2 size={19} />}</button>
+        <button type="button" className="game-icon" aria-label="Game options" onClick={() => setSettingsOpen(true)}>•••</button>
       </header>
-
-      <div className="mx-auto grid max-w-6xl gap-3 px-3 py-3 pb-24 lg:grid-cols-5">
-        <section className="lg:col-span-3">
-          <div className="mb-2 flex flex-wrap gap-2 text-xs text-mute">
-            <Legend owner="player" label="You" />
-            <Legend owner="neutral" label="Open" />
-            <Legend owner="vultures" label="Vultures" />
-            <Legend owner="lanterns" label="Lanterns" />
-            <Legend owner="saints" label="Saints" />
-            <Legend owner="cobras" label="Cobras" />
-          </div>
-          <CityMap game={game} />
-          <p className="mt-3 text-sm text-mute">
-            If the week closed now: {money(preview.cash)} across {preview.lines.length} block
-            {preview.lines.length === 1 ? "" : "s"}, about +{Math.round(preview.heat)} heat.
-          </p>
-          <div className="mt-2 space-y-1">
-            {game.log.slice(0, 3).map((line) => (
-              <p key={line.id} className={`text-sm ${toneClass(line.tone)}`}>
-                {line.text}
-              </p>
-            ))}
-          </div>
-          {toast ? (
-            <p role="status" className="mt-2 text-sm text-blood">
-              {toast}
-            </p>
-          ) : (
-            <p className="mt-2 min-h-5 text-sm text-mute"> </p>
-          )}
-        </section>
-
-        <section className="lg:col-span-2">
-          {selected ? <Inspector game={game} district={selected} preview={preview} playing={playing && !busy} /> : null}
-        </section>
+      <div className="game-stats" aria-label="Empire stats">
+        <span><Coins size={14} /><strong>{money(game.cash)}</strong></span>
+        <span title={`Police heat; ${game.strikes} strikes`}><Flame size={14} /><strong>{Math.round(game.heat)}</strong><small>heat</small></span>
+        <span><Shield size={14} /><strong>{game.respect}</strong></span>
+        <span><strong>{game.ap}/{game.maxAp}</strong><small>moves</small></span>
       </div>
-
-      {playing ? (
-        <div className="sticky bottom-0 border-t border-line bg-panel">
-          <div className="mx-auto flex max-w-6xl gap-2 px-3 py-2">
-            <button type="button" className={`${btnGhost} inline-flex flex-1 items-center justify-center gap-2`} onClick={() => setModal("market")}>
-              <Store className="size-4" /> Market
-            </button>
-            <button type="button" className={`${btnGhost} inline-flex flex-1 items-center justify-center gap-2`} onClick={() => setModal("ledger")}>
-              <BookOpen className="size-4" /> Ledger
-            </button>
-            <button type="button" className={`${btnGold} flex-[1.4] font-display text-base tracking-wide`} disabled={busy} onClick={closeWeek}>
-              Close week
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="sticky bottom-0 border-t border-line bg-panel">
-          <div className="mx-auto flex max-w-6xl px-3 py-2">
-            <button type="button" className={`${btnGhost} inline-flex w-full items-center justify-center gap-2`} onClick={() => setModal("ledger")}>
-              <BookOpen className="size-4" /> Ledger
-            </button>
-          </div>
-        </div>
-      )}
+      <section className="game-map-space" aria-label="City operations">
+        <CityMap game={game} onManage={() => setInspectorOpen(true)} toast={toast} />
+      </section>
+      <nav className="game-bottom" aria-label="Empire actions">
+        <button type="button" disabled={!playing || busy} onClick={() => setModal("market")}><Store size={18} />Market</button>
+        <button type="button" onClick={() => setModal("ledger")}><BookOpen size={18} />Ledger</button>
+        <button type="button" className="game-close-week" disabled={!playing || busy} onClick={closeWeek}>Close week</button>
+      </nav>
+      {inspectorOpen && selected && <Sheet title="REGION MANAGEMENT" onClose={() => setInspectorOpen(false)}><Inspector game={game} district={selected} preview={preview} playing={playing && !busy} /></Sheet>}
+      {settingsOpen && <Sheet title="GAME OPTIONS" onClose={() => setSettingsOpen(false)}>
+        <p className="text-paper">{game.crew} · {game.boss}</p>
+        <p className="mt-2 text-sm text-mute">{game.crewCounts.muscle} muscle · {game.crewCounts.dealers} dealers · {game.strikes}/3 police strikes</p>
+        <p className="mt-2 text-sm text-mute">Weekly sales forecast: {money(preview.cash)} · +{Math.round(preview.heat)} heat</p>
+        <div className="my-4"><TipSupport /></div>
+        <button type="button" className={btnGhost} onClick={() => { void showPrivacyOptions(); }}>Privacy choices</button>
+      </Sheet>}
 
       {modal === "market" && playing ? <MarketSheet game={game} /> : null}
       {modal === "ledger" ? <LedgerSheet game={game} /> : null}

@@ -1,6 +1,7 @@
 import { hit, neighborsOf } from "./logic";
 import type { Result } from "./logic";
 import type { CityMapState, GameState } from "./types";
+import { districtPoint } from "./city-geometry";
 
 export const STREET_MS = 900;
 export const BATTLE_MS = 3200;
@@ -96,7 +97,7 @@ export function crewPoint(game: GameState, now: number): { x: number; y: number 
   const map = cityMapOf(game);
   const point = (id: string) => {
     const d = game.districts.find(d => d.id === id) ?? game.districts[0];
-    return { x: 30 + d.col * 150 + 66, y: 34 + d.row * 150 + 65 };
+    return districtPoint(d);
   };
   if (!map.order) return point(map.locationId);
   const { route, startedAt, arrivesAt } = map.order;
