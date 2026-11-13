@@ -93,6 +93,7 @@ export interface WeekReport {
 }
 
 export interface GameState {
+  encounters?: import("./encounters").Encounters;
   cityMap?: CityMapState;
   version: 1;
   seed: number;

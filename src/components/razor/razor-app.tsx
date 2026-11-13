@@ -14,6 +14,7 @@ import {
 import { resumeAudio } from "@/game/audio";
 import { showInterstitial, showPrivacyOptions, showRewarded } from "@/lib/ads";
 import { TipSupport } from "./tip-support";
+import { ContactsPanel, ContactPopup } from "./contacts";
 import { CityMap } from "./city-map";
 import { cityMapOf } from "@/game/city-map";
 import { GANG_IDS, PRODUCTS } from "@/game/content";
@@ -224,6 +225,8 @@ function PlayScreen() {
   const toggleMute = useRazor((s) => s.toggleMute);
   const clearToast = useRazor((s) => s.clearToast);
   const closeWeek = useRazor((s) => s.closeWeek);
+  const tickContacts = useRazor(s => s.tickContacts);
+  const [contactsOpen, setContactsOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shaking, setShaking] = useState(false);
@@ -245,6 +248,14 @@ function PlayScreen() {
     if (game?.cityMap?.order) setInspectorOpen(false);
   }, [game?.cityMap?.order]);
 
+  useEffect(() => {
+    if (inspectorOpen || settingsOpen || contactsOpen || modal !== "none") return;
+    const tick = () => { if (document.visibilityState === "visible") tickContacts(); };
+    tick();
+    const timer = window.setInterval(tick, 1000);
+    return () => window.clearInterval(timer);
+  }, [tickContacts, inspectorOpen, settingsOpen, contactsOpen, modal]);
+
   if (!game) return null;
   const selected = game.districts.find((d) => d.id === game.selectedId) ?? game.districts[0];
   const preview = previewSales(game);
@@ -255,6 +266,7 @@ function PlayScreen() {
     <main className={`game-viewport ${shaking ? "shake" : ""}`}>
       <header className="game-topbar">
         <div className="game-brand"><strong>RAZOR CITY</strong><span>WK {game.week} · {game.difficulty.toUpperCase()}</span></div>
+        <button type="button" className="contacts-trigger" aria-label="Contacts and active deals" onClick={() => setContactsOpen(true)}>Deals {game.encounters?.deals.filter(d => d.status === "active").length || ""}</button>
         <button type="button" className="game-icon" aria-label={muted ? "Unmute" : "Mute"} onClick={toggleMute}>{muted ? <VolumeX size={19} /> : <Volume2 size={19} />}</button>
         <button type="button" className="game-icon" aria-label="Game options" onClick={() => setSettingsOpen(true)}>•••</button>
       </header>
@@ -281,6 +293,8 @@ function PlayScreen() {
         <button type="button" className={btnGhost} onClick={() => { void showPrivacyOptions(); }}>Privacy choices</button>
       </Sheet>}
 
+      {contactsOpen && <ContactsPanel game={game} close={() => setContactsOpen(false)} />}
+      <ContactPopup game={game} />
       {modal === "market" && playing ? <MarketSheet game={game} /> : null}
       {modal === "ledger" ? <LedgerSheet game={game} /> : null}
       {game.phase === "event" && game.pending ? <EventSheet /> : null}

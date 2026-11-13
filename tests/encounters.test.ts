@@ -1,0 +1,75 @@
+import assert from "node:assert/strict";
+import { advanceEncounters, decideDeal, deliverDeal, resolveTalk, tickEncounters } from "../src/game/encounters";
+import { createGame, netWorth } from "../src/game/logic";
+import type { GameState } from "../src/game/types";
+import type { Result } from "../src/game/logic";
+const fresh = () => createGame({ boss: "Test", crew: "Test", difficulty: "street", seed: 42 });
+function state(r: Result | null): GameState { assert.ok(r?.ok); return r.state; }
+let g = fresh(); const original = structuredClone(g);
+g = state(tickEncounters(g, 1000));
+assert.deepEqual(original, fresh(), "Initialization must not mutate input");
+assert.ok(g.encounters!.nextBuyerAt >= 36000 && g.encounters!.nextBuyerAt <= 66000);
+assert.equal(tickEncounters(g, 1001), null, "No writes between scheduled calls");
+let seen = new Set<string>();
+for (let i = 0; i < 4; i++) {
+  g.encounters!.nextTalkAt = Number.MAX_SAFE_INTEGER;
+  g = state(tickEncounters(g, g.encounters!.nextBuyerAt));
+  const d = g.encounters!.deals.at(-1)!; seen.add(d.buyer);
+  assert.equal(d.bonus, 10000);
+  assert.ok(d.payment > g.prices[d.product].wholesale * d.quantity);
+  g = state(decideDeal(g, d.id, false, 100000 * (i + 1)));
+}
+assert.equal(seen.size, 4, "All four buyers must appear before any repeats");
+console.log("PASS Legacy saves initialize random contacts safely; all buyers rotate and every bonus is exactly $10,000.");
+
+g.encounters!.nextTalkAt = Number.MAX_SAFE_INTEGER;
+g = state(tickEncounters(g, g.encounters!.nextBuyerAt));
+const offer = g.encounters!.deals.at(-1)!;
+g = state(decideDeal(g, offer.id, true));
+assert.equal(decideDeal(g, offer.id, true).ok, false, "Cannot accept twice");
+g.stash[offer.product] = Math.floor(offer.quantity / 2);
+const before = netWorth(g), cash = g.cash, sold = g.stats.productSold;
+g = state(deliverDeal(g, offer.id));
+assert.equal(g.cash, cash, "Partial delivery cannot pay");
+assert.equal(netWorth(g), before, "Reserved inventory stays in net worth");
+assert.equal(g.stats.productSold, sold);
+g = JSON.parse(JSON.stringify(g));
+g.week = offer.dueWeek;
+g.stash[offer.product] = offer.quantity;
+g = state(deliverDeal(g, offer.id));
+assert.equal(g.cash, cash + offer.payment + 10000, "Full delivery pays base and bonus exactly once, including on deadline week");
+assert.equal(g.stats.productSold, sold + offer.quantity);
+assert.equal(deliverDeal(g, offer.id).ok, false);
+assert.equal(g.encounters!.completed, 1);
+console.log("PASS Partial orders survive saves and preserve net worth; completion consumes inventory and pays base plus bonus exactly once.");
+
+let expired = state(tickEncounters(fresh(), 1000)); expired.encounters!.nextTalkAt = Number.MAX_SAFE_INTEGER;
+expired = state(tickEncounters(expired, expired.encounters!.nextBuyerAt));
+const d = expired.encounters!.deals.at(-1)!;
+expired = state(decideDeal(expired, d.id, true)); expired.stash[d.product] = 10;
+expired = state(deliverDeal(expired, d.id));
+expired.week = d.dueWeek; advanceEncounters(expired, 1);
+assert.equal(expired.encounters!.deals.at(-1)!.status, "active");
+expired.week++; advanceEncounters(expired, 1);
+assert.equal(expired.encounters!.deals.at(-1)!.status, "expired");
+assert.equal(expired.stash[d.product], 10, "Unused reservations returned on expiry");
+assert.equal(deliverDeal(expired, d.id).ok, false);
+advanceEncounters(expired, 1); assert.equal(expired.stash[d.product], 10, "Expiration returns stock once");
+console.log("PASS Deadlines include the full final week; expired deals return reservations once and never pay a bonus.");
+
+let t = state(tickEncounters(fresh(), 1000)); t.encounters!.nextBuyerAt = Number.MAX_SAFE_INTEGER;
+t = state(tickEncounters(t, t.encounters!.nextTalkAt));
+assert.equal(t.encounters!.pending?.kind, "talk");
+assert.equal(tickEncounters(t, Number.MAX_SAFE_INTEGER), null, "Pending dialogues must not be overwritten");
+const cashBefore = t.cash, respect = t.respect, loyalty = t.districts.find(d => d.owner === "player")!.loyalty;
+t = state(resolveTalk(JSON.parse(JSON.stringify(t)), "pay"));
+assert.equal(t.cash, cashBefore - 500); assert.equal(t.respect, respect + 1);
+assert.equal(t.districts.find(d => d.owner === "player")!.loyalty, loyalty + 5);
+assert.equal(resolveTalk(t, "pay").ok, false);
+assert.equal(tickEncounters(t, t.encounters!.nextTalkAt), null, "Only one conversation per week");
+t.cityMap = { locationId: "hollow", order: { kind: "travel", route: ["hollow", "iron"], startedAt: 0, arrivesAt: 99999, endsAt: 99999, soldiers: 0 } };
+assert.equal(tickEncounters(t, Number.MAX_SAFE_INTEGER), null);
+assert.equal(deliverDeal(t, "none").ok, false);
+t.cityMap.order = null; t.phase = "summary";
+assert.equal(tickEncounters(t, Number.MAX_SAFE_INTEGER), null);
+console.log("PASS Crew choices persist, charge and reward once; popups wait during battles, weekly reports and other conversations.");

@@ -1,6 +1,7 @@
+import { tickEncounters, decideDeal, deliverDeal, resolveTalk } from "./encounters";
 import { create } from "zustand";
 import { playSound, resumeAudio, setAudioMuted, unlockAudio } from "@/game/audio";
-import { continueReport, createGame, endWeek, isGameState, netWorth, resolveChoice, setSelected } from "@/game/logic";
+import { continueReport, createGame, endWeek, isGameState, netWorth, refreshDefense, resolveChoice, setSelected } from "@/game/logic";
 import type { GameState, StartOpts } from "@/game/types";
 import type { Result } from "@/game/logic";
 import { cityMapOf, completeCityOrder, issueCityOrder } from "@/game/city-map";
@@ -53,6 +54,10 @@ interface RazorStore {
   travel: (waypoints: string[]) => void;
   orderAttack: (id: string, soldiers: number) => void;
   tickCity: () => void;
+  tickContacts: () => void;
+  decideDeal: (id: string, accept: boolean) => void;
+  deliverDeal: (id: string) => void;
+  replyToCrew: (choice: string) => void;
 }
 
 const emptyLegacy = (): Legacy => ({ wins: 0, bestWorth: 0, bestWeek: null, runs: 0 });
@@ -191,6 +196,7 @@ export const useRazor = create<RazorStore>((set, get) => ({
     }
     const prev = get().game;
     const game = result.state;
+    refreshDefense(game);
     let legacy = get().legacy;
     const ended = game.phase === "won" || game.phase === "lost";
     const justEnded = ended && prev?.phase !== game.phase;
@@ -220,6 +226,7 @@ export const useRazor = create<RazorStore>((set, get) => ({
   closeWeek: () => {
     const game = get().game;
     if (!game) return;
+    if (game.encounters?.pending) { set({ toast: "Answer your contact first." }); return; }
     get().commit(endWeek(game));
   },
 
@@ -277,6 +284,18 @@ export const useRazor = create<RazorStore>((set, get) => ({
     get().commit(result);
   },
 
+  tickContacts: () => {
+    const game = get().game;
+    if (!game || get().modal !== "none") return;
+    const result = tickEncounters(game);
+    if (!result?.ok) return;
+    persist(result.state);
+    set({ game: result.state, saveMeta: metaOf(result.state) });
+    if (result.state.encounters?.pending) playSound("tick");
+  },
+  decideDeal: (id, accept) => { const game = get().game; if (game) get().commit(decideDeal(game, id, accept)); },
+  deliverDeal: id => { const game = get().game; if (game) get().commit(deliverDeal(game, id)); },
+  replyToCrew: choice => { const game = get().game; if (game) get().commit(resolveTalk(game, choice)); },
   clearToast: () => set({ toast: null }),
 
   toggleMute: () => {

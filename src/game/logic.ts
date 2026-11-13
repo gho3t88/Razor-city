@@ -1,3 +1,4 @@
+import { advanceEncounters } from "./encounters";
 import { GANG_IDS, PRODUCTS, PRODUCT_IDS, WIN_BLOCKS, WIN_RESPECT, WIN_WORTH, makeDistricts, makeGangs } from "@/game/content";
 import type {
   ChoiceEvent,
@@ -128,7 +129,8 @@ function clampStations(state: GameState) {
 export function netWorth(state: GameState): number {
   let stash = 0;
   for (const id of PRODUCT_IDS) stash += state.stash[id] * state.prices[id].wholesale;
-  return Math.round(state.cash + stash + playerBlocks(state).length * 15000);
+  const reserved = (state.encounters?.deals ?? []).filter(d => d.status === "active").reduce((sum, d) => sum + d.delivered * state.prices[d.product].wholesale, 0);
+  return Math.round(state.cash + stash + reserved + playerBlocks(state).length * 15000);
 }
 
 export function relationWord(n: number, truceWeeks: number): string {
@@ -962,6 +964,7 @@ export function endWeek(state: GameState): Result {
   raid(next, rng);
   const closedWeek = next.week;
   next.week += 1;
+  advanceEncounters(next);
   next.ap = Math.max(1, next.maxAp - next.apPenalty);
   next.apPenalty = 0;
   next.loud = false;
