@@ -93,6 +93,7 @@ export interface WeekReport {
 }
 
 export interface GameState {
+  regionMarkets?: Record<string, import("./region-economy").RegionEconomy>;
   encounters?: import("./encounters").Encounters;
   cityMap?: CityMapState;
   version: 1;

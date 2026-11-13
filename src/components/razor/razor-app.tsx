@@ -1,3 +1,5 @@
+import { RegionMarket } from "./region-market";
+import { regionMarket } from "@/game/region-economy";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   BookOpen,
@@ -226,6 +228,7 @@ function PlayScreen() {
   const clearToast = useRazor((s) => s.clearToast);
   const closeWeek = useRazor((s) => s.closeWeek);
   const tickContacts = useRazor(s => s.tickContacts);
+  const [tradeOpen, setTradeOpen] = useState(false);
   const [contactsOpen, setContactsOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -249,12 +252,12 @@ function PlayScreen() {
   }, [game?.cityMap?.order]);
 
   useEffect(() => {
-    if (inspectorOpen || settingsOpen || contactsOpen || modal !== "none") return;
+    if (inspectorOpen || settingsOpen || contactsOpen || tradeOpen || modal !== "none") return;
     const tick = () => { if (document.visibilityState === "visible") tickContacts(); };
     tick();
     const timer = window.setInterval(tick, 1000);
     return () => window.clearInterval(timer);
-  }, [tickContacts, inspectorOpen, settingsOpen, contactsOpen, modal]);
+  }, [tickContacts, inspectorOpen, settingsOpen, contactsOpen, tradeOpen, modal]);
 
   if (!game) return null;
   const selected = game.districts.find((d) => d.id === game.selectedId) ?? game.districts[0];
@@ -277,7 +280,7 @@ function PlayScreen() {
         <span><strong>{game.ap}/{game.maxAp}</strong><small>moves</small></span>
       </div>
       <section className="game-map-space" aria-label="City operations">
-        <CityMap game={game} onManage={() => setInspectorOpen(true)} toast={toast} />
+        <CityMap game={game} onManage={() => setInspectorOpen(true)} onTrade={() => setTradeOpen(true)} toast={toast} />
       </section>
       <nav className="game-bottom" aria-label="Empire actions">
         <button type="button" disabled={!playing || busy} onClick={() => setModal("market")}><Store size={18} />Market</button>
@@ -293,6 +296,7 @@ function PlayScreen() {
         <button type="button" className={btnGhost} onClick={() => { void showPrivacyOptions(); }}>Privacy choices</button>
       </Sheet>}
 
+      {tradeOpen && <RegionMarket game={game} close={() => setTradeOpen(false)} />}
       {contactsOpen && <ContactsPanel game={game} close={() => setContactsOpen(false)} />}
       <ContactPopup game={game} />
       {modal === "market" && playing ? <MarketSheet game={game} /> : null}
@@ -383,7 +387,7 @@ function Inspector({
           <div key={id} className="grid grid-cols-5 items-center gap-2 text-xs">
             <span className="col-span-2 text-mute">{PRODUCTS[id].name}</span>
             <span className="col-span-3 h-1.5 overflow-hidden rounded-full bg-ink">
-              <span className="block h-full bg-gold" style={{ width: `${district.demand[id]}%` }} />
+              <span className="block h-full bg-gold" style={{ width: `${regionMarket(game, district.id).products[id].demand}%` }} />
             </span>
           </div>
         ))}

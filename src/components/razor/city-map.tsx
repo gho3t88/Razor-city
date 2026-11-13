@@ -1,3 +1,5 @@
+import { regionMarket } from "@/game/region-economy";
+import { PRODUCTS } from "@/game/content";
 import { useEffect, useRef, useState } from "react";
 import { cityMapOf, crewPoint, waypointRoute } from "@/game/city-map";
 import { adjacentToPlayer, freeMuscle, hitOutlook, isGangId } from "@/game/logic";
@@ -13,7 +15,7 @@ const districtTones = ["#4d9ba5", "#c18b63", "#a37acb", "#c55b98", "#6c91b0", "#
 const roofTones = ["#64888c", "#a08067", "#846c9b", "#97627e", "#617b93", "#a28b63", "#688b70", "#527f78", "#926b58", "#8b7b5a", "#507a8d", "#8c6065"];
 const control = "min-h-11 rounded-md border border-line px-3 py-2 text-sm disabled:opacity-40";
 
-export function CityMap({ game, onManage, toast }: { game: GameState; onManage?: () => void; toast?: string | null }) {
+export function CityMap({ game, onManage, onTrade, toast }: { game: GameState; onManage?: () => void; onTrade?: () => void; toast?: string | null }) {
   const scroll = useRef<HTMLDivElement>(null);
   const select = useRazor(s => s.select);
   const travel = useRazor(s => s.travel);
@@ -28,6 +30,7 @@ export function CityMap({ game, onManage, toast }: { game: GameState; onManage?:
   const map = cityMapOf(game);
   const order = map.order;
   const selected = game.districts.find(d => d.id === game.selectedId) ?? game.districts[0];
+  const localMarket = regionMarket(game, selected.id);
   const route = order?.route ?? waypointRoute(game, stops.length ? stops : [selected.id]);
   const point = crewPoint(game, reducedMotion && order ? (now >= order.arrivesAt ? order.arrivesAt : order.startedAt) : now);
   const busy = !!order;
@@ -175,9 +178,11 @@ export function CityMap({ game, onManage, toast }: { game: GameState; onManage?:
       </div>
       <div className="city-orders">
         <div className="city-selection"><div><p className="city-eyebrow" style={{ color: colors[selected.owner] }}>{owner}</p><h3>{selected.name}</h3></div><span>{busy ? "ORDER ACTIVE" : `DEF ${selected.defense}`}</span></div>
+        <div className="city-market-note"><span>{localMarket.eventProduct ? `${PRODUCTS[localMarket.eventProduct].name} ${localMarket.event === "surge" ? "▲ PRICE SPIKE" : "▼ PRICE DROP"}` : "LOCAL PRICES & DEMAND"}</span><span>Dust $${localMarket.products.dust.sell}/unit</span></div>
         <div className="city-action-row">
           <button type="button" className={`${control} bg-gold text-ink font-semibold`} disabled={busy || game.phase !== "play" || route.length < 2} onClick={() => { travel(stops.length ? stops : [selected.id]); setStops([]); setPlanning(false); }}>Travel {stops.length ? "route" : "here"}</button>
           <button type="button" className={control} aria-pressed={planning} disabled={busy || game.phase !== "play"} onClick={() => { setPlanning(!planning); setStops([]); }}>{planning ? "Cancel route" : "Waypoints"}</button>
+          <button type="button" className={control} onClick={onTrade}>Trade</button>
           <button type="button" className={control} onClick={onManage}>Manage</button>
         </div>
         {planning && <div className="city-plan-row"><span>Tap stops in order ({stops.length}/6)</span>{stops.length > 0 && <button type="button" onClick={() => setStops(stops.slice(0, -1))}>Undo</button>}</div>}

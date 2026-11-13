@@ -1,0 +1,76 @@
+import assert from "node:assert/strict";
+import { createGame, endWeek, quoteDistrict } from "../src/game/logic";
+import { regionMarket, refreshRegionMarkets, tradeRegion, visitRegionMarket } from "../src/game/region-economy";
+import { completeCityOrder, issueCityOrder } from "../src/game/city-map";
+import { PRODUCT_IDS } from "../src/game/content";
+import type { GameState } from "../src/game/types";
+import type { Result } from "../src/game/logic";
+const fresh = (seed = 42) => createGame({ boss: "Test", crew: "Test", difficulty: "street", seed });
+const state = (r: Result | null) => { assert.ok(r?.ok); return r.state; };
+let g = fresh();
+const profiles = new Set(g.districts.map(d => JSON.stringify(regionMarket(g, d.id).products)));
+assert.equal(profiles.size, 12);
+const initial = structuredClone(g);
+for (let i = 0; i < 5; i++) regionMarket(g, "hollow");
+assert.deepEqual(g, initial, "Browsing must never mutate prices or game RNG");
+assert.deepEqual(regionMarket(JSON.parse(JSON.stringify(g)), "hollow"), regionMarket(g, "hollow"));
+const legacy = fresh(); delete legacy.regionMarkets; const legacyCopy = structuredClone(legacy);
+regionMarket(legacy, "hollow"); assert.deepEqual(legacy, legacyCopy); refreshRegionMarkets(legacy);
+assert.equal(Object.keys(legacy.regionMarkets!).length, 12);
+console.log("PASS All 12 regions have independent persistent markets; browsing and legacy migration cannot reroll or mutate quotes.");
+
+const oldIron = structuredClone(regionMarket(g, "iron"));
+const oldHollow = structuredClone(regionMarket(g, "hollow"));
+const travel = state(issueCityOrder(g, ["blackwater"], 0, 1));
+const arrived = state(completeCityOrder(travel, 999999));
+assert.notDeepEqual(regionMarket(arrived, "blackwater"), regionMarket(g, "blackwater"));
+assert.deepEqual(regionMarket(arrived, "iron"), oldIron);
+const destination = structuredClone(regionMarket(arrived, "blackwater"));
+assert.equal(completeCityOrder(arrived, 999999), null);
+assert.deepEqual(regionMarket(arrived, "blackwater"), destination, "Arrival changes quotes once");
+visitRegionMarket(g, "hollow");
+assert.notDeepEqual(regionMarket(g, "hollow"), oldHollow);
+assert.equal(regionMarket(g, "hollow").products.dust.buyers, oldHollow.products.dust.buyers, "Travel must not refill demand");
+console.log("PASS Travel shifts destination prices once, keeps other regions stable, and cannot refill depleted demand.");
+
+g = fresh(); g.cash = 100000;
+const quote = structuredClone(regionMarket(g, "hollow").products.dust);
+const quantity = 5, cash = g.cash, stash = g.stash.dust;
+let sold = state(tradeRegion(g, "hollow", "dust", quantity, "sell"));
+assert.equal(sold.cash, cash + quote.sell * quantity);
+assert.equal(sold.stash.dust, stash - quantity);
+assert.equal(regionMarket(sold, "hollow").products.dust.buyers, quote.buyers - quantity);
+assert.ok(regionMarket(sold, "hollow").products.dust.sell <= quote.sell);
+assert.equal(sold.stats.productSold, quantity); assert.ok(sold.heat > g.heat);
+assert.deepEqual(g, { ...fresh(), cash: 100000 }, "Transactions must not mutate input state");
+const buyQuote = structuredClone(regionMarket(sold, "hollow").products.velvet);
+const bought = state(tradeRegion(sold, "hollow", "velvet", 3, "buy"));
+assert.equal(bought.cash, sold.cash - buyQuote.buy * 3);
+assert.equal(bought.stash.velvet, sold.stash.velvet + 3);
+assert.equal(regionMarket(bought, "hollow").products.velvet.supply, buyQuote.supply - 3);
+assert.equal(tradeRegion(g, "iron", "dust", 1, "sell").ok, false);
+for (const n of [0, -1, NaN, Infinity, 1.5, 999999]) assert.equal(tradeRegion(g, "hollow", "dust", n, "sell").ok, false);
+assert.equal(tradeRegion({ ...g, phase: "summary" }, "hollow", "dust", 1, "sell").ok, false);
+assert.equal(tradeRegion(travel, "hollow", "dust", 1, "sell").ok, false);
+g.regionMarkets!.hollow.products.dust.buyers = 0;
+assert.equal(tradeRegion(g, "hollow", "dust", 1, "sell").ok, false);
+console.log("PASS Direct buys and sales conserve cash and inventory, consume local capacity, shift prices, and reject remote, closed, invalid or unaffordable trades.");
+
+g = fresh(); const before = structuredClone(g.regionMarkets!);
+g.week++; refreshRegionMarkets(g);
+for (const d of g.districts) assert.notDeepEqual(regionMarket(g, d.id).products, before[d.id].products);
+for (const d of g.districts) for (const p of PRODUCT_IDS) {
+ const q = regionMarket(g, d.id).products[p]; assert.ok(q.buy > q.sell && q.sell > 0 && q.buyers >= 0);
+}
+const d = g.districts.find(d => d.owner === "player")!;
+g.stash = { dust: 999, velvet: 0, ice: 0, grow: 0 };d.focus = "dust";
+const originalLocal = quoteDistrict(g, d, g.stash)!;
+g.regionMarkets![d.id].products.dust.sell *= 2;
+const doubled = quoteDistrict(g, d, g.stash)!;
+assert.ok(Math.abs(doubled.cash - originalLocal.cash * 2) <= 1, "Local price changes feed through to dealer revenue, allowing dollar rounding");
+g.regionMarkets![d.id].products.dust.buyers = 0;
+assert.equal(quoteDistrict(g, d, g.stash), null);
+let surge = false, slump = false;
+for (let seed = 1; seed <= 60; seed++) for (const m of Object.values(fresh(seed).regionMarkets!)) { surge ||= m.event === "surge"; slump ||= m.event === "slump"; }
+assert.ok(surge && slump);
+console.log("PASS Weekly markets refresh independently; prices have real surges and slumps, buy/sell spreads remain valid, and stationed dealers use local prices and remaining demand.");

@@ -1,8 +1,9 @@
+import { refreshRegionMarkets, tradeRegion } from "./region-economy";
 import { tickEncounters, decideDeal, deliverDeal, resolveTalk } from "./encounters";
 import { create } from "zustand";
 import { playSound, resumeAudio, setAudioMuted, unlockAudio } from "@/game/audio";
 import { continueReport, createGame, endWeek, isGameState, netWorth, refreshDefense, resolveChoice, setSelected } from "@/game/logic";
-import type { GameState, StartOpts } from "@/game/types";
+import type { GameState, ProductId, StartOpts } from "@/game/types";
 import type { Result } from "@/game/logic";
 import { cityMapOf, completeCityOrder, issueCityOrder } from "@/game/city-map";
 
@@ -55,6 +56,7 @@ interface RazorStore {
   orderAttack: (id: string, soldiers: number) => void;
   tickCity: () => void;
   tickContacts: () => void;
+  tradeRegion: (region: string, product: ProductId, quantity: number, side: "buy" | "sell") => void;
   decideDeal: (id: string, accept: boolean) => void;
   deliverDeal: (id: string) => void;
   replyToCrew: (choice: string) => void;
@@ -104,7 +106,10 @@ function readSave(): GameState | null {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
-    return isGameState(parsed) ? { ...parsed, districts: refreshDistrictNames(parsed.districts) } : null;
+    if (!isGameState(parsed)) return null;
+    const game = { ...parsed, districts: refreshDistrictNames(parsed.districts) };
+    refreshRegionMarkets(game);
+    return game;
   } catch {
     return null;
   }
@@ -284,6 +289,7 @@ export const useRazor = create<RazorStore>((set, get) => ({
     get().commit(result);
   },
 
+  tradeRegion: (region, product, quantity, side) => { const game = get().game; if (game) get().commit(tradeRegion(game, region, product, quantity, side)); },
   tickContacts: () => {
     const game = get().game;
     if (!game || get().modal !== "none") return;

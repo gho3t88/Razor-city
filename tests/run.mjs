@@ -3,6 +3,7 @@ const server = await createServer({ server: { middlewareMode: true }, appType: "
 try {
   await server.ssrLoadModule("/tests/city-map.test.ts");
   await server.ssrLoadModule("/tests/encounters.test.ts");
+  await server.ssrLoadModule("/tests/region-economy.test.ts");
 } finally {
   await server.close();
 }

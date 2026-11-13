@@ -1,3 +1,4 @@
+import { visitRegionMarket } from "./region-economy";
 import { hit, neighborsOf } from "./logic";
 import type { Result } from "./logic";
 import type { CityMapState, GameState } from "./types";
@@ -75,6 +76,7 @@ export function completeCityOrder(game: GameState, now = Date.now()): Result | n
   const name = game.districts.find(d => d.id === target)?.name ?? target;
   if (order.kind === "travel") {
     const next = structuredClone(game);
+    visitRegionMarket(next, target);
     next.cityMap = { locationId: target, order: null, report: `Crew arrived at ${name}.` };
     return { ok: true, state: next, fx: "tick" };
   }

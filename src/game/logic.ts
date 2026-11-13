@@ -1,3 +1,4 @@
+import { regionMarket, refreshRegionMarkets, consumeLocalDemand } from "./region-economy";
 import { advanceEncounters } from "./encounters";
 import { GANG_IDS, PRODUCTS, PRODUCT_IDS, WIN_BLOCKS, WIN_RESPECT, WIN_WORTH, makeDistricts, makeGangs } from "@/game/content";
 import type {
@@ -252,13 +253,14 @@ function giveBlockToPlayer(state: GameState, d: District, loyalty: number, muscl
 
 export function quoteDistrict(state: GameState, d: District, stash: Record<ProductId, number>): SaleLine | null {
   if (d.owner !== "player" || d.stationDealers < 1 || d.loyalty <= 0) return null;
+  const market = regionMarket(state, d.id);
   const ranked = [...PRODUCT_IDS].sort((a, b) => {
-    const score = (p: ProductId) => state.prices[p].street * (d.demand[p] / 100) * PRODUCTS[p].volume;
+    const score = (p: ProductId) => market.products[p].sell * (market.products[p].demand / 100) * PRODUCTS[p].volume;
     return score(b) - score(a);
   });
   const order = d.focus === "auto" ? ranked : [d.focus, ...ranked.filter((p) => p !== d.focus)];
   for (const product of order) {
-    const demand = d.demand[product];
+    const demand = market.products[product].demand;
     if (demand < 18 && d.focus !== product) continue;
     if (stash[product] <= 0) continue;
     let cap = Math.round(
@@ -272,10 +274,10 @@ export function quoteDistrict(state: GameState, d: District, stash: Record<Produ
       cap = Math.round(cap * state.bonus.mult);
     }
     cap = Math.max(0, cap);
-    const units = Math.min(stash[product], cap);
+    const units = Math.min(stash[product], cap, market.products[product].buyers);
     if (units < 1) continue;
     const heatTax = state.heat >= 80 ? 0.78 : state.heat >= 60 ? 0.9 : 1;
-    const unit = state.prices[product].street * d.wealth * (0.58 + d.loyalty / 200) * heatTax;
+    const unit = market.products[product].sell * (0.58 + d.loyalty / 200) * heatTax;
     const cash = Math.max(1, Math.round(units * unit));
     const heat = units * PRODUCTS[product].heat * d.heatMod * 0.42;
     return { districtId: d.id, district: d.name, product, units, cash, heat };
@@ -355,6 +357,7 @@ export function createGame(opts: StartOpts): GameState {
   if (difficulty === "war") {
     for (const id of GANG_IDS) state.gangs[id].muscle = Math.round(state.gangs[id].muscle * 1.3);
   }
+  refreshRegionMarkets(state);
   refreshDefense(state);
   pushLog(state, `${state.boss} opens the books for the ${state.crew}.`, "gold");
   pushLog(state, "Hollow Docks is yours. The Iron Saints share your fence.", "paper");
@@ -646,6 +649,7 @@ function applySales(state: GameState): SaleLine[] {
     const q = quoteDistrict(state, d, stash);
     if (!q) continue;
     stash[q.product] -= q.units;
+    consumeLocalDemand(state, d.id, q.product, q.units);
     state.cash += q.cash;
     state.heat += q.heat;
     state.stats.earned += q.cash;
@@ -964,6 +968,7 @@ export function endWeek(state: GameState): Result {
   raid(next, rng);
   const closedWeek = next.week;
   next.week += 1;
+  refreshRegionMarkets(next);
   advanceEncounters(next);
   next.ap = Math.max(1, next.maxAp - next.apPenalty);
   next.apPenalty = 0;
