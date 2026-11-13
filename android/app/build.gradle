@@ -35,6 +35,8 @@ android {
     }
     buildTypes {
         debug {
+            applicationIdSuffix ".preview"
+            versionNameSuffix "-city-map-preview"
             signingConfig signingConfigs.debug
         }
         release {
