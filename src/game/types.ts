@@ -101,6 +101,8 @@ export interface GameState {
   encounters?: import("./encounters").Encounters;
   cityMap?: CityMapState;
   version: 1;
+  /** Week when the player earned the optional sponsored cash bonus in this save. */
+  sponsorBonusWeek?: number;
   seed: number;
   logSeq: number;
   difficulty: Difficulty;
