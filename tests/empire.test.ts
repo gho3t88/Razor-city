@@ -1,0 +1,68 @@
+import assert from "node:assert/strict";
+import { createGame, netWorth, endWeek } from "../src/game/logic";
+import { applyEmpireWeek,businessIncome,buyBusiness,crewLevel,empireOf,FRONT_TYPES,medicalLosses,payOffThreat,queueRetaliation,recruitSpecialist,rememberCrewChoice,rememberFight,rememberTravel,RECRUITS,resolveRetaliations,specialistBonus,supportSpecialist,threatPayoff,upgradeBusiness } from "../src/game/empire";
+import { combatMultiplier,combatOf,escapeChance,beginAmbushFight } from "../src/game/combat";
+import { eventEffects,refreshRegionEvents,regionEvent } from "../src/game/world-events";
+import { regionMarket,tradeRegion } from "../src/game/region-economy";
+import { completeCityOrder } from "../src/game/city-map";
+import { decideDeal,deliverDeal,tickEncounters } from "../src/game/encounters";
+import type { GameState } from "../src/game/types";
+import type { Result } from "../src/game/logic";
+const state=(r:Result|null):GameState=>{assert.ok(r?.ok);return r.state;};
+const fresh=()=>createGame({boss:"Test",crew:"Crew",difficulty:"street",seed:42});
+let g=fresh();g.cash=100000;g.ap=20;g.heat=30;
+const worth=netWorth(g);g=state(buyBusiness(g,"hollow","garage"));assert.equal(netWorth(g),worth);
+assert.equal(buyBusiness(g,"hollow","bar").ok,false);assert.equal(buyBusiness(g,"iron","bar").ok,false);
+g=state(upgradeBusiness(g,"hollow"));assert.equal(empireOf(g).businesses[0].level,2);
+const b=empireOf(g).businesses[0],cash=g.cash,heat=g.heat,income=businessIncome(g,b);
+applyEmpireWeek(g);assert.equal(g.cash,cash+income);assert.equal(g.heat,heat-2);
+applyEmpireWeek(g);assert.equal(g.cash,cash+income,"Business income must pay once per week");
+g.week++;refreshRegionEvents(g);applyEmpireWeek(g);assert.ok(g.cash>cash+income);
+g.districts.find(d=>d.id==="hollow")!.owner="saints";assert.equal(businessIncome(g,b),0);
+g.districts.find(d=>d.id==="hollow")!.owner="player";assert.ok(businessIncome(g,b)>0);
+console.log("PASS Business purchases/upgrades preserve investment value, pay once weekly, reduce heat and stop/resume income as block ownership changes.");
+
+g=fresh();g.cash=100000;g.ap=20;const baseline=combatMultiplier(g),escape=escapeChance(g);
+for(const r of RECRUITS)g=state(recruitSpecialist(g,r.id));
+assert.equal(empireOf(g).crew.length,4);assert.equal(recruitSpecialist(g,"jax").ok,false);
+assert.ok(combatMultiplier(g)>baseline);assert.ok(escapeChance(g)>escape);assert.ok(medicalLosses(g,20)<20);assert.ok(specialistBonus(g,"deals")>0);
+rememberFight(g,true);rememberFight(g,true);assert.equal(crewLevel(empireOf(g).crew[0]),2);
+rememberCrewChoice(g,"listen");assert.ok(empireOf(g).crew.every(c=>c.memories[0].text.includes("listened")));
+const taz=empireOf(g).crew.find(c=>c.id==="taz")!,xp=taz.xp;rememberTravel(g);assert.equal(taz.xp,xp+15);
+const jax=empireOf(g).crew.find(c=>c.id==="jax")!;jax.loyalty=10;assert.equal(specialistBonus(g,"power"),0);
+g=state(supportSpecialist(g,"jax"));assert.equal(empireOf(g).crew.find(c=>c.id==="jax")!.loyalty,25);assert.ok(specialistBonus(g,"power")>0);
+const payroll=RECRUITS.reduce((n,r)=>n+r.wage,0),beforePay=g.cash;applyEmpireWeek(g);assert.equal(g.cash,beforePay-payroll);applyEmpireWeek(g);assert.equal(g.cash,beforePay-payroll);
+g.week++;g.cash=0;applyEmpireWeek(g);assert.ok(empireOf(g).crew.some(c=>c.memories[0].text.includes("weekly pay")));
+const restored=JSON.parse(JSON.stringify(g));assert.deepEqual(empireOf(restored),empireOf(g));
+console.log("PASS Four named specialists affect real game mechanics, level through work/fights, retain decision memories and loyalty, and charge weekly payroll exactly once.");
+
+function offer(source:GameState){let s=state(tickEncounters(source,1));s.encounters!.nextBuyerAt=0;s.encounters!.nextTalkAt=Number.MAX_SAFE_INTEGER;return state(tickEncounters(s,2));}
+let plain=fresh();plain.cash=30000;plain.ap=20;let broker=state(recruitSpecialist(plain,"mina"));broker.cash=30000;
+const p=offer(plain),m=offer(broker);const pd=p.encounters!.deals.at(-1)!,md=m.encounters!.deals.at(-1)!;
+assert.equal(pd.product,md.product);assert.equal(pd.quantity,md.quantity);assert.ok(md.payment>pd.payment);
+let deal=state(decideDeal(m,md.id,true));deal.stash[md.product]=md.quantity;deal=state(deliverDeal(deal,md.id));assert.ok(empireOf(deal).crew.find(c=>c.id==="mina")!.xp>=60);
+console.log("PASS Recruited negotiators improve actual bulk-contract payouts and gain XP/memories from completed deals.");
+
+const kinds=new Set<string>();for(let seed=1;seed<=40;seed++){const s=createGame({boss:"T",crew:"C",difficulty:"street",seed});for(const d of s.districts){const e=regionEvent(s,d.id);if(e)kinds.add(e.kind);}}assert.equal(kinds.size,4);
+const normal=fresh();normal.regionEvents={week:normal.week,events:{}};delete normal.regionMarkets;
+const festival=structuredClone(normal);festival.regionEvents!.events.hollow={week:1,kind:"festival",name:"Festival",description:"Test"};
+const lockdown=structuredClone(normal);lockdown.regionEvents!.events.hollow={week:1,kind:"lockdown",name:"Lockdown",description:"Test"};
+assert.ok(regionMarket(festival,"hollow").products.dust.sell>regionMarket(normal,"hollow").products.dust.sell);
+assert.ok(regionMarket(lockdown,"hollow").products.dust.buyers<regionMarket(normal,"hollow").products.dust.buyers);
+const normalSold=state(tradeRegion(normal,"hollow","dust",5,"sell")),hotSold=state(tradeRegion(lockdown,"hollow","dust",5,"sell"));assert.ok(hotSold.heat>normalSold.heat);
+assert.ok(eventEffects(lockdown,"hollow").risk>eventEffects(normal,"hollow").risk);
+const frozen=structuredClone(festival);regionEvent(festival,"hollow");assert.deepEqual(festival,frozen);
+assert.deepEqual(regionEvent(JSON.parse(JSON.stringify(festival)),"hollow"),regionEvent(festival,"hollow"));
+console.log("PASS Lockdowns, festivals, club nights and blackouts persist and change real prices, demand, heat, business income and travel-risk modifiers.");
+
+g=fresh();g.cash=100000;g.ap=20;queueRetaliation(g,"saints","hollow");const threat=empireOf(g).threats[0];assert.ok(threat&&threat.dueWeek>g.week);
+const paid=state(payOffThreat(g,threat.id));assert.equal(paid.cash,g.cash-threatPayoff(threat));assert.equal(paid.gangs.saints.truceWeeks,2);assert.equal(payOffThreat(paid,threat.id).ok,false);
+const defended=structuredClone(g);defended.week=threat.dueWeek;defended.districts.find(d=>d.id==="hollow")!.defense=999;let fought=0,captured=0;
+resolveRetaliations(defended,()=>.5,()=>captured++,won=>{assert.equal(won,true);fought++;});assert.equal(fought,1);assert.equal(captured,0);resolveRetaliations(defended,()=>.5,()=>captured++,()=>fought++);assert.equal(fought,1);
+const losing=structuredClone(g);losing.week=threat.dueWeek;losing.districts.find(d=>d.id==="hollow")!.defense=1;
+const closed=state(endWeek(losing));assert.equal(empireOf(closed).threats[0].status,"lost");assert.equal(closed.districts.find(d=>d.id==="hollow")!.owner,"saints");
+const paused=structuredClone(g);paused.combat={...combatOf(paused),ambush:{origin:"hollow",destination:"blackwater",location:"blackwater",attackers:3,triggerAt:1}};paused.cityMap={locationId:"blackwater",order:null};paused.crewCounts.muscle=40;
+const started=state(beginAmbushFight(paused,1000));assert.equal(started.fightScene!.status,"active");assert.equal(completeCityOrder(started,3599),null);
+const victory=state(completeCityOrder(JSON.parse(JSON.stringify(started)),3600));assert.equal(victory.fightScene!.status,"won");assert.equal(combatOf(victory).wins,1);assert.ok(victory.cityMap!.order);
+assert.equal(completeCityOrder(victory,3601),null);
+console.log("PASS Rival threats have deadlines, honor payoffs, resolve counterattacks once and capture blocks; animated ambush battles survive saves and award results once.");

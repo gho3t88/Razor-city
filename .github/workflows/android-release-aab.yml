@@ -55,6 +55,7 @@ jobs:
       - name: Build signed internal-test AAB
         working-directory: android
         env:
+          RAZOR_PLAY_BILLING_PUBLIC_KEY: ${{ secrets.RAZOR_PLAY_BILLING_PUBLIC_KEY }}
           RAZOR_UPLOAD_KEYSTORE_PATH: ${{ runner.temp }}/razor-city-upload.jks
           RAZOR_UPLOAD_PASSWORD: ${{ secrets.RAZOR_UPLOAD_PASSWORD }}
         run: ./gradlew bundleRelease -PuseLiveAds=false

@@ -1,0 +1,27 @@
+name: Check city map and game build
+on:
+  pull_request:
+    branches: [main, feature/city-operations-map]
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --no-audit --no-fund
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/layout-check.mjs
+      - run: node tests/contacts-check.mjs
+      - run: node tests/region-market-check.mjs
+      - run: node tests/combat-check.mjs
+      - run: node tests/empire-check.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: city-layout-checks
+          path: test-results/

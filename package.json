@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "node tests/run.mjs",
     "dev": "vite --host",
     "build": "tsc --noEmit && vite build",
     "android:sync": "npm run build && cap sync android"
@@ -22,6 +23,7 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.2.0",
+    "playwright": "^1.62.1",
     "tailwindcss": "^4.3.0",
     "typescript": "^5.7.0",
     "vite": "^8.2.0"
