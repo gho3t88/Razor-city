@@ -718,7 +718,7 @@ function MarketSheet({ game, onGear }: { game: GameState; onGear: () => void }) 
       <button type="button" disabled={adBusy || !eligible} className={`${btnGold} mb-3 w-full`} onClick={claimSponsorBonus}>
         {adBusy ? "Loading sponsor…" : claimed ? "Sponsor bonus claimed this week" : "Watch ad · get $1,000 bonus"}
       </button>
-      {adMessage && <p className="mb-3 text-sm text-mute" role="status">{adMessage}</p> 
+      {adMessage && <p className="mb-3 text-sm text-mute" role="status">{adMessage}</p>}
       <ul className="space-y-3">
         {(Object.keys(PRODUCTS) as ProductId[]).map((id) => {
           const p = PRODUCTS[id];
