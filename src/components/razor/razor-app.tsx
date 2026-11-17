@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { resumeAudio } from "@/game/audio";
 import { showInterstitial, showPrivacyOptions, showRewarded } from "@/lib/ads";
+import { canClaimSponsorBonus, sponsorBonusClaimed } from "@/game/ad-reward";
 import { TipSupport } from "./tip-support";
 import { ContactsPanel, ContactPopup } from "./contacts";
 import { CityMap } from "./city-map";
@@ -692,20 +693,32 @@ function MarketSheet({ game, onGear }: { game: GameState; onGear: () => void }) 
   const setModal = useRazor((s) => s.setModal);
   const grantAdReward = useRazor((s) => s.grantAdReward);
   const [adBusy, setAdBusy] = useState(false);
+  const [adMessage, setAdMessage] = useState("");
+  const claimed = sponsorBonusClaimed(game);
+  const eligible = canClaimSponsorBonus(game);
   const claimSponsorBonus = async () => {
-    if (adBusy) return;
+    if (adBusy || !eligible) return;
     setAdBusy(true);
-    const earned = await showRewarded();
-    if (earned) grantAdReward();
-    setAdBusy(false);
+    setAdMessage("");
+    try {
+      const earned = await showRewarded();
+      if (earned) {
+        if (!grantAdReward()) setAdMessage("Sponsor bonus could not be claimed. Try again during an open week.");
+      } else {
+        setAdMessage("Ad unavailable or not completed. No bonus was used; try again later.");
+      }
+    } finally {
+      setAdBusy(false);
+    }
   };
   return (
     <Sheet title="WHOLESALE" onClose={() => setModal("none")}>
       <button type="button" className="combat-opening" onClick={onGear}>Black Market & Training · Level {levelOf(game)}</button>
       <p className="mb-3 text-sm text-mute">Buying is free of moves. Prices drift every week. You hold the stash, corners spend it.</p>
-      <button type="button" disabled={adBusy} className={`${btnGold} mb-3 w-full`} onClick={claimSponsorBonus}>
-        {adBusy ? "Loading sponsor…" : "Watch ad · get $1,000 bonus"}
+      <button type="button" disabled={adBusy || !eligible} className={`${btnGold} mb-3 w-full`} onClick={claimSponsorBonus}>
+        {adBusy ? "Loading sponsor…" : claimed ? "Sponsor bonus claimed this week" : "Watch ad · get $1,000 bonus"}
       </button>
+      {adMessage && <p className="mb-3 text-sm text-mute" role="status">{adMessage}</p> 
       <ul className="space-y-3">
         {(Object.keys(PRODUCTS) as ProductId[]).map((id) => {
           const p = PRODUCTS[id];
