@@ -31,7 +31,22 @@ try {
   await page.getByRole("button", { name: "Zoom in" }).click();
   await page.getByRole("button", { name: "Reset map view" }).click();
   assert.equal(await svg.evaluate(node => node.style.width), "100%");
-  console.log("PASS current-location travel disabled; +/-/Fit zoom controls update the map");
+  // Exercise the two-finger handler directly, not only the toolbar.
+  await page.evaluate(() => {
+    const el = document.querySelector(".city-scroll");
+    const rect = el.getBoundingClientRect();
+    const finger = (id, dx) => new Touch({ identifier: id, target: el, clientX: rect.left + 150 + dx, clientY: rect.top + 125 });
+    const start = [finger(1, -20), finger(2, 20)];
+    const finish = [finger(1, -65), finger(2, 65)];
+    el.dispatchEvent(new TouchEvent("touchstart", { touches: start, targetTouches: start, changedTouches: start, bubbles: true, cancelable: true }));
+    el.dispatchEvent(new TouchEvent("touchmove", { touches: finish, targetTouches: finish, changedTouches: finish, bubbles: true, cancelable: true }));
+    el.dispatchEvent(new TouchEvent("touchend", { touches: [], targetTouches: [], changedTouches: finish, bubbles: true, cancelable: true }));
+  });
+  await page.waitForFunction(() => parseFloat(document.querySelector(".city-svg").style.width) > 100);
+  await page.getByRole("button", { name: "Reset map view" }).click();
+  assert.equal(await svg.evaluate(node => node.style.width), "100%");
+  console.log("PASS current-location travel disabled; toolbar and two-finger zoom work");
+
 
   for (const [width, height] of [[393, 760], [360, 640], [320, 568], [852, 393], [1280, 900]]) {
     await page.setViewportSize({ width, height });
