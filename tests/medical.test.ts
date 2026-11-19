@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { createGame, endWeek, hit, recruit, continueReport } from "../src/game/logic";
-import { medicalOf, recordCasualties, TREATMENT_COST, treatWounded, woundedCount, expireUntreated } from "../src/game/medical";
+import { createGame, endWeek, hit, recruit } from "../src/game/logic";
+import { medicalOf, TREATMENT_COST, treatWounded, woundedCount, expireUntreated } from "../src/game/medical";
 import { completeCityOrder, issueCityOrder } from "../src/game/city-map";
 import type { GameState } from "../src/game/types";
 
@@ -14,6 +14,7 @@ assert.equal(legacy.medical, undefined, "Legacy records must not be mutated by r
 
 // Force a loss with several combat casualties to exercise BOTH fatal and recoverable outcomes.
 const game = fresh();
+game.crewCounts.muscle = 20;
 game.districts.find(d => d.id === "iron")!.defense = 900;
 const preFightCount = game.crewCounts.muscle;
 const lost = hit(game, "iron", 5);
@@ -82,6 +83,7 @@ console.log("PASS soldier recruitment costs $700 and a move, while reserving wou
 
 // A real timed battle should attach the after-action detail to its visible report.
 const fightGame = fresh();
+fightGame.crewCounts.muscle = 20;
 fightGame.districts.find(d => d.id === "iron")!.defense = 900;
 const ordered = issueCityOrder(fightGame, ["iron"], 5, 1000);
 assert.ok(ordered.ok);
