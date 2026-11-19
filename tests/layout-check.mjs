@@ -22,6 +22,17 @@ async function inside(locator, width, height) {
 try {
   await page.goto("http://127.0.0.1:5178");
   await page.getByRole("button", { name: "Take the docks", exact: true }).click();
+  assert.equal(await page.getByRole("button", { name: "Already here", exact: true }).isDisabled(), true, "Travel to the crew's current region must be disabled");
+  const svg = page.locator(".city-svg");
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  assert.equal(await svg.evaluate(node => node.style.width), "140%");
+  await page.getByRole("button", { name: "Zoom out" }).click();
+  assert.equal(await svg.evaluate(node => node.style.width), "100%");
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  await page.getByRole("button", { name: "Reset map view" }).click();
+  assert.equal(await svg.evaluate(node => node.style.width), "100%");
+  console.log("PASS current-location travel disabled; +/-/Fit zoom controls update the map");
+
   for (const [width, height] of [[393, 760], [360, 640], [320, 568], [852, 393], [1280, 900]]) {
     await page.setViewportSize({ width, height });
     await page.getByRole("button", { name: "Ironworks, Iron Saints", exact: true }).click();
@@ -38,6 +49,15 @@ try {
     console.log(`PASS ${width}x${height}: map ${Math.round(layout.map)}px; Travel and Attack visible without scrolling`);
   }
   await page.setViewportSize({ width: 393, height: 760 });
+  await page.evaluate(async () => {
+    const { useRazor } = await import("/src/game/store.ts");
+    const g = structuredClone(useRazor.getState().game);
+    g.regionEvents = { week: g.week, events: Object.fromEntries(g.districts.map(d => [d.id, d.id === "iron" ? { week: g.week, kind: "lockdown", name: "Police lockdown", description: "Extra patrols: fewer buyers, lower prices and more dangerous travel." } : null])) };
+    useRazor.setState({ game: g });
+  });
+  assert.ok(await page.locator(".city-lockdown-region").count() > 0, "Police lockdown must mark the map");
+  assert.match(await page.locator(".city-event-strip.lockdown").innerText(), /POLICE LOCKDOWN/);
+  console.log("PASS police lockdown warning visible on region and selection panel");
   await page.getByRole("button", { name: "Blackwater, open", exact: true }).click();
   await page.evaluate(async () => { const { useRazor } = await import("/src/game/store.ts"); const g = structuredClone(useRazor.getState().game); g.seed = 42; useRazor.setState({ game: g }); });
   await page.getByRole("button", { name: "Travel here", exact: true }).click();
