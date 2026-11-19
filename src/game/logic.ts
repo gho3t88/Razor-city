@@ -1,6 +1,7 @@
 import { applyEmpireWeek, empireOf, hasThreat, medicalLosses, queueRetaliation, resolveRetaliations, specialistBonus } from "./empire";
 import { eventEffects, refreshRegionEvents, regionEvent } from "./world-events";
 import { finishFight } from "./fight-scene";
+import { expireUntreated, recordCasualties } from "./medical";
 import { combatMultiplier, combatOf, grantFightRewards, levelOf, weaponOf } from "./combat";
 import { regionMarket, refreshRegionMarkets, consumeLocalDemand } from "./region-economy";
 import { advanceEncounters } from "./encounters";
@@ -611,12 +612,15 @@ export function hit(state: GameState, id: string, commit: number): Result {
   if (send > freeMuscle(next)) return fail("That muscle is already stationed.");
   const ap = spendAp(next);
   if (ap) return fail(ap);
+  const before = combatOf(next);
+  const beforeXp = before.xp, beforeCredits = before.credits;
   next.loud = true;
   const rng = roller(next);
   const atk = send * (5.5 + next.respect / 30) * combatMultiplier(next) * (0.72 + rng() * 0.55);
   const def = d.defense;
   if (atk > def) {
     const losses = Math.min(send, medicalLosses(next, Math.max(1, Math.round(send * (0.1 + rng() * 0.16)))));
+    const casualties = recordCasualties(next, send, losses, true);
     next.crewCounts.muscle = Math.max(0, next.crewCounts.muscle - losses);
     clampStations(next);
     const wasHome = d.id === gang?.home;
@@ -638,20 +642,21 @@ export function hit(state: GameState, id: string, commit: number): Result {
     next.stats.blocksTaken += 1;
     const homeLine = wasHome ? " You took their house." : "";
     grantFightRewards(next, true, Math.max(1, Math.round(def / 6)));
-    pushLog(next, `${d.name} falls. Lost ${losses} muscle.${homeLine}`, "blood");
+    pushLog(next, `${d.name} falls. ${casualties.killed} killed, ${casualties.wounded} wounded.${homeLine}`, "blood");
     if(gang) queueRetaliation(next,gang.id,d.id);
-    finishFight(next,true,`Victory in ${d.name}. ${losses} soldier losses. The block belongs to you.`);
+    finishFight(next,true,`Victory in ${d.name}. The block belongs to you.`, { deployed: send, ...casualties, xpEarned: combatOf(next).xp - beforeXp, creditsEarned: combatOf(next).credits - beforeCredits, cashChange: 0, territory: `${d.name} captured` });
     return finish(next, "hit");
   }
   const losses = Math.min(send, medicalLosses(next, Math.max(1, Math.round(send * (0.34 + rng() * 0.28)))));
+  const casualties = recordCasualties(next, send, losses, false);
   next.crewCounts.muscle = Math.max(0, next.crewCounts.muscle - losses);
   clampStations(next);
   if (gang) { gang.relation = clamp(gang.relation - 14, -100, 80); gang.truceWeeks = 0; }
   next.heat = clamp(next.heat + 10, 0, 100);
   next.respect = clamp(next.respect - 2, 0, 100);
   grantFightRewards(next, false, Math.max(1, Math.round(def / 6)));
-  pushLog(next, `${gang?.name ?? "Local defenders"} hold ${d.name}. You lose ${losses} muscle.`, "blood");
-  finishFight(next,false,`Defeat in ${d.name}. ${losses} soldier losses. Your crew pulled back.`);
+  pushLog(next, `${gang?.name ?? "Local defenders"} hold ${d.name}. ${casualties.killed} killed, ${casualties.wounded} wounded.`, "blood");
+  finishFight(next,false,`Defeat in ${d.name}. Your crew pulled back.`, { deployed: send, ...casualties, xpEarned: combatOf(next).xp - beforeXp, creditsEarned: combatOf(next).credits - beforeCredits, cashChange: 0, territory: `${d.name} remains enemy-held` });
   return finish(next, "hit");
 }
 
@@ -989,6 +994,7 @@ export function endWeek(state: GameState): Result {
   raid(next, rng);
   const closedWeek = next.week;
   next.week += 1;
+  expireUntreated(next);
   refreshRegionEvents(next);
   for(const d of next.districts.filter(d=>regionEvent(next,d.id)).slice(0,3))pushLog(next,`Next week in ${d.name}: ${regionEvent(next,d.id)!.name}.`,"mute");
   refreshRegionMarkets(next);
