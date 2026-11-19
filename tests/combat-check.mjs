@@ -14,6 +14,7 @@ try {
   await page.getByRole("button", { name: "Take the docks", exact: true }).click();
   await page.getByRole("button", { name: "Black market and training" }).click();
   await page.getByRole("dialog", { name: "BLACK MARKET & TRAINING" }).waitFor();
+  await page.getByRole("button", { name: "Weapons", exact: true }).click();
   assert.equal(await page.locator(".weapon-card").count(), 9);
   for (const [width,height] of [[393,760],[320,568],[852,393]]) {
     await page.setViewportSize({width,height});
