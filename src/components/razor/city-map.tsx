@@ -155,7 +155,7 @@ export function CityMap({ game, onManage, onTrade, onGear, toast }: { game: Game
             const on = d.id === selected.id;
             const color = colors[d.owner];
             return (
-              <g key={d.id} className="city-region" role="button" tabIndex={0} aria-label={`${d.name}, ${d.owner === "neutral" ? "open" : d.owner === "player" ? "yours" : game.gangs[d.owner].name}${regionEvent(game, d.id)?.kind === "lockdown" ? ", police lockdown" : ""}`} aria-pressed={on} onClick={() => choose(d.id)} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); choose(d.id); } }}>
+              <g key={d.id} className="city-region" role="button" tabIndex={0} aria-label={`${d.name}, ${d.owner === "neutral" ? "open" : d.owner === "player" ? "yours" : game.gangs[d.owner].name}`} aria-describedby={regionEvent(game, d.id)?.kind === "lockdown" ? `city-lockdown-${d.id}` : undefined} aria-pressed={on} onClick={() => choose(d.id)} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); choose(d.id); } }}>
                 <polygon points={polygon} fill={districtTones[index]} fillOpacity={on ? ".56" : ".32"} stroke={on ? "#ffe1a2" : color} strokeOpacity={on ? 1 : .75} strokeWidth={on ? 2.5 : 1.4} strokeDasharray={on ? "7 4" : d.owner === "neutral" ? "3 6" : undefined} />
                 {regionEvent(game, d.id)?.kind === "lockdown" && <polygon points={polygon} className="city-lockdown-region" pointerEvents="none" />}
                 {Array.from({ length: d.wealth > 1.3 ? 12 : d.lab ? 8 : 10 }, (_, b) => {
@@ -203,7 +203,7 @@ export function CityMap({ game, onManage, onTrade, onGear, toast }: { game: Game
                   {lines.map((line, i) => <tspan key={line} x={p.x} y={p.y - (lines.length === 1 ? 60 : 67) + i * 14}>{line}</tspan>)}
                 </text>
                 <circle cx={p.x + 54} cy={p.y - 76} r="2.5" fill={color} />
-                {regionEvent(game, d.id)?.kind === "lockdown" && <g transform={`translate(${p.x + 46},${p.y - 33})`} className="city-lockdown-badge"><title>Police lockdown in ${d.name}</title><circle r="12" fill="#792725" stroke="#ffb29c" strokeWidth="2" /><text y="5" textAnchor="middle" fontSize="16" fontWeight="900" fill="#fff2de">!</text></g>}
+                {regionEvent(game, d.id)?.kind === "lockdown" && <g transform={`translate(${p.x + 46},${p.y - 33})`} className="city-lockdown-badge"><title id={`city-lockdown-${d.id}`}>Police lockdown in ${d.name}</title><circle r="12" fill="#792725" stroke="#ffb29c" strokeWidth="2" /><text y="5" textAnchor="middle" fontSize="16" fontWeight="900" fill="#fff2de">!</text></g>}
               </g>;
             })}
           </g>
