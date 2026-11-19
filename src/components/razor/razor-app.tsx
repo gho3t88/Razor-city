@@ -281,8 +281,8 @@ function PlayScreen() {
       <header className="game-topbar">
         <div className="game-brand"><strong>RAZOR CITY</strong><span>WK {game.week} · {game.difficulty.toUpperCase()}</span></div>
         <button type="button" className="contacts-trigger" aria-label="Contacts and active deals" onClick={() => setContactsOpen(true)}>Deals {game.encounters?.deals.filter(d => d.status === "active").length || ""}</button>
-        <button type="button" className="game-icon" aria-label={muted ? "Unmute" : "Mute"} onClick={toggleMute}>{muted ? <VolumeX size={19} /> : <Volume2 size={19} />}</button>
-        <button type="button" className="game-icon" aria-label="Game options" onClick={() => setSettingsOpen(true)}>•••</button>
+        <button type="button" className="game-icon game-sound" aria-label={muted ? "Unmute" : "Mute"} onClick={toggleMute}>{muted ? <VolumeX size={19} /> : <Volume2 size={19} />}</button>
+        <button type="button" className="game-icon game-settings" aria-label="Game options" onClick={() => setSettingsOpen(true)}>•••</button>
       </header>
       <div className="game-stats" aria-label="Empire stats">
         <span><Coins size={14} /><strong>{money(game.cash)}</strong></span>
