@@ -4,7 +4,9 @@ import { CombatCenter, AmbushPopup } from "./combat-center";
 import { combatOf, levelOf, weaponOf } from "@/game/combat";
 import { RegionMarket } from "./region-market";
 import { regionMarket } from "@/game/region-economy";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { App } from "@capacitor/app";
+import { Capacitor } from "@capacitor/core";
 import {
   BookOpen,
   Coins,
@@ -231,6 +233,7 @@ function PlayScreen() {
   const pulse = useRazor((s) => s.pulse);
   const muted = useRazor((s) => s.muted);
   const setModal = useRazor((s) => s.setModal);
+  const pauseGame = useRazor((s) => s.pauseGame);
   const toggleMute = useRazor((s) => s.toggleMute);
   const clearToast = useRazor((s) => s.clearToast);
   const closeWeek = useRazor((s) => s.closeWeek);
@@ -243,7 +246,50 @@ function PlayScreen() {
   const [contactsOpen, setContactsOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [exitPromptOpen, setExitPromptOpen] = useState(false);
   const [shaking, setShaking] = useState(false);
+  // The native Android Back listener is installed once. Its ref always points
+  // at the latest open screen so an already-closed dialog cannot be reopened.
+  const backHandler = useRef<() => void>(() => {});
+  backHandler.current = () => {
+    if (billingBusy) return; // Never interrupt a Google Play purchase.
+    if (exitPromptOpen) { setExitPromptOpen(false); return; }
+    // These popups require a choice; a hardware Back press must not discard it.
+    if (game?.encounters?.pending || (game && combatOf(game).ambush)) return;
+    if (watchingFight) { useRazor.getState().dismissFight(); return; }
+    if (contactsOpen) { setContactsOpen(false); return; }
+    if (tradeOpen) { setTradeOpen(false); return; }
+    if (combatOpen) { setCombatOpen(false); return; }
+    if (empireOpen) { setEmpireOpen(false); return; }
+    if (settingsOpen) { setSettingsOpen(false); return; }
+    if (inspectorOpen) { setInspectorOpen(false); return; }
+    if (modal !== "none") { setModal("none"); return; }
+    if (game) setExitPromptOpen(true);
+  };
+
+  useEffect(() => {
+    const back = () => backHandler.current();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      back();
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    let alive = true;
+    let removeNative: (() => Promise<void>) | undefined;
+    if (Capacitor.isNativePlatform()) {
+      void App.addListener("backButton", back).then(handle => {
+        if (alive) removeNative = () => handle.remove();
+        else void handle.remove();
+      }).catch(() => { /* Web Escape and visible buttons still work. */ });
+    }
+    return () => {
+      alive = false;
+      window.removeEventListener("keydown", onKeyDown, true);
+      if (removeNative) void removeNative();
+    };
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -322,6 +368,18 @@ function PlayScreen() {
       {game.phase === "event" && game.pending ? <EventSheet /> : null}
       {game.phase === "summary" && game.report ? <SummarySheet /> : null}
       {game.phase === "won" || game.phase === "lost" ? <EndingSheet /> : null}
+      {exitPromptOpen && (
+        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-ink/85 p-3 sm:items-center">
+          <section role="alertdialog" aria-modal="true" aria-labelledby="return-to-menu-title" className="w-full max-w-md rounded-xl border border-line bg-panel p-5">
+            <h2 id="return-to-menu-title" className="font-display text-2xl text-paper">Return to main menu?</h2>
+            <p className="mt-2 text-sm text-mute">Your current progress will be saved. You can continue from the main menu.</p>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button type="button" className={btnGhost} onClick={() => setExitPromptOpen(false)}>Keep playing</button>
+              <button type="button" className={btnGold} onClick={pauseGame}>Save &amp; main menu</button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

@@ -22,6 +22,24 @@ async function inside(locator, width, height) {
 try {
   await page.goto("http://127.0.0.1:5178");
   await page.getByRole("button", { name: "Take the docks", exact: true }).click();
+  // Tester #06: keyboard Escape and Android Back share the same handler.
+  // Dismissing a sheet must not exit the game or discard saved progress.
+  await page.getByRole("button", { name: "Market", exact: true }).click();
+  await page.getByRole("heading", { name: "WHOLESALE", exact: true }).waitFor();
+  await page.keyboard.press("Escape");
+  assert.equal(await page.getByRole("heading", { name: "WHOLESALE", exact: true }).count(), 0);
+  await page.getByRole("button", { name: "Game options", exact: true }).click();
+  await page.getByRole("heading", { name: "GAME OPTIONS", exact: true }).waitFor();
+  await page.keyboard.press("Escape");
+  assert.equal(await page.getByRole("heading", { name: "GAME OPTIONS", exact: true }).count(), 0);
+  await page.keyboard.press("Escape");
+  await page.getByRole("alertdialog", { name: "Return to main menu?" }).waitFor();
+  await page.keyboard.press("Escape");
+  assert.equal(await page.getByRole("alertdialog", { name: "Return to main menu?" }).count(), 0);
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Save & main menu" }).click();
+  await page.getByRole("button", { name: /Continue Hollow Kings/ }).click();
+  await page.getByRole("button", { name: "Close week", exact: true }).waitFor();
   for (const [width, height] of [[393, 760], [360, 640], [320, 568], [852, 393], [1280, 900]]) {
     await page.setViewportSize({ width, height });
     await page.getByRole("button", { name: "Ironworks, Iron Saints", exact: true }).click();

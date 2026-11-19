@@ -62,6 +62,7 @@ interface RazorStore {
   boot: () => void;
   startNew: (opts: StartOpts) => void;
   continueGame: () => void;
+  pauseGame: () => void;
   abandon: () => void;
   select: (id: string) => void;
   commit: (result: Result) => void;
@@ -216,6 +217,17 @@ export const useRazor = create<RazorStore>((set, get) => ({
     }
     set({ screen: "game", game: save, hasSave: true, saveMeta: metaOf(save), modal: "none", toast: null });
     playSound("tick");
+  },
+
+  pauseGame: () => {
+    if (get().billingBusy) return;
+    const game = get().game;
+    if (!game) return;
+    if (!persist(game)) {
+      set({ toast: "Couldn't save your game. Stay here and try again." });
+      return;
+    }
+    set({ screen: "start", game: null, hasSave: true, saveMeta: metaOf(game), modal: "none", toast: null });
   },
 
   abandon: () => {
