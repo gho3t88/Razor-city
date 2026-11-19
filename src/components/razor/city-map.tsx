@@ -158,8 +158,8 @@ export function CityMap({ game, onManage, onTrade, onGear, toast }: { game: Game
               <g key={d.id} className="city-region" role="button" tabIndex={0} aria-label={`${d.name}, ${d.owner === "neutral" ? "open" : d.owner === "player" ? "yours" : game.gangs[d.owner].name}${regionEvent(game, d.id)?.kind === "lockdown" ? ", police lockdown" : ""}`} aria-pressed={on} onClick={() => choose(d.id)} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); choose(d.id); } }}>
                 <polygon points={polygon} fill={districtTones[index]} fillOpacity={on ? ".56" : ".32"} stroke={on ? "#ffe1a2" : color} strokeOpacity={on ? 1 : .75} strokeWidth={on ? 2.5 : 1.4} strokeDasharray={on ? "7 4" : d.owner === "neutral" ? "3 6" : undefined} />
                 {regionEvent(game, d.id)?.kind === "lockdown" && <polygon points={polygon} className="city-lockdown-region" pointerEvents="none" />}
-                {Array.from({ length: d.wealth > 1.3 ? 12 : d.lab ? 8 : 10 }, (_, b, all) => {
-                  const split = Math.ceil(all.length / 2);
+                {Array.from({ length: d.wealth > 1.3 ? 12 : d.lab ? 8 : 10 }, (_, b) => {
+                  const split = d.wealth > 1.3 ? 6 : d.lab ? 4 : 5;
                   const side = b < split ? -1 : 1;
                   const col = b % split;
                   const bx = center.x - 58 + col * (split === 6 ? 22 : split === 4 ? 34 : 27) + ((index * 7 + b * 3) % 7 - 3);
