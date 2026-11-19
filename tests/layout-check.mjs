@@ -62,7 +62,7 @@ try {
   await page.evaluate(async () => { const { useRazor } = await import("/src/game/store.ts"); const g = structuredClone(useRazor.getState().game); g.seed = 42; useRazor.setState({ game: g }); });
   await page.getByRole("button", { name: "Travel here", exact: true }).click();
   await page.getByText("Crew arrived at Blackwater.", { exact: true }).waitFor();
-  await page.getByRole("button", { name: "Ironworks, Iron Saints", exact: true }).click();
+  await page.getByRole("button", { name: /^Ironworks, Iron Saints/ }).click();
   await page.getByRole("button", { name: "Attack · 1 move", exact: true }).click();
   await page.getByText(/Fighting in Ironworks/).waitFor();
   await page.screenshot({ path: "test-results/street-battle.png" });
