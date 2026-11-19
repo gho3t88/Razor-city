@@ -14,6 +14,24 @@ try {
   await page.getByRole("button", { name: "Take the docks", exact: true }).click();
   await page.getByRole("button", { name: "Black market and training" }).click();
   await page.getByRole("dialog", { name: "BLACK MARKET & TRAINING" }).waitFor();
+  const rosterStart = await readGame();
+  await page.getByRole("button", { name: "Recruit 1 soldier · $700 · 1 move" }).click();
+  assert.equal((await readGame()).crewCounts.muscle, rosterStart.crewCounts.muscle + 1);
+  assert.equal((await readGame()).cash, rosterStart.cash - 700);
+  await page.evaluate(async () => {
+    const { useRazor } = await import("/src/game/store.ts");
+    const game = structuredClone(useRazor.getState().game);
+    game.crewCounts.muscle -= 1;
+    game.medical = { wounded: [{ count: 1, dueWeek: game.week + 1 }], killed: 0, recovered: 0, untreatedDeaths: 0 };
+    useRazor.setState({ game });
+  });
+  const cashBeforeMedics = (await readGame()).cash;
+  await page.getByRole("button", { name: "Patch up 1 · $450" }).click();
+  assert.equal((await readGame()).cash, cashBeforeMedics - 450);
+  assert.equal((await readGame()).medical.recovered, 1);
+  assert.equal((await readGame()).medical.wounded.length, 0);
+  console.log("PASS soldier recruit and medical treatment work through the mobile UI");
+  await page.getByRole("button", { name: "Weapons", exact: true }).click();
   assert.equal(await page.locator(".weapon-card").count(), 9);
   for (const [width,height] of [[393,760],[320,568],[852,393]]) {
     await page.setViewportSize({width,height});
@@ -61,7 +79,7 @@ try {
   await page.getByRole("button",{name:"Blackwater, open",exact:true}).click();
   await page.getByLabel("Attack soldiers",{exact:true}).selectOption("20");
   await page.getByRole("button",{name:"Attack · 1 move",exact:true}).click();
-  await page.getByText(/Blackwater captured/).waitFor();
+  await page.getByText(/Blackwater captured/).first().waitFor();
   const captured = await readGame();
   assert.equal(captured.districts.find(d=>d.id==="blackwater").owner,"player");
   assert.ok(captured.combat.wins > 0 && captured.combat.xp > 150);

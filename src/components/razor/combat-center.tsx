@@ -1,20 +1,24 @@
 import { useEffect, useState } from "react";
 import { combatMultiplier, combatOf, levelOf, MAX_LEVEL, trainingCost, WEAPONS, weaponOf, xpForLevel, ambushOutlook, escapeChance } from "@/game/combat";
 import { money } from "@/game/logic";
+import { medicalOf, TREATMENT_COST, woundedCount, SOLDIER_CAP } from "@/game/medical";
 import { useRazor } from "@/game/store";
 import { CREDIT_PACKS, creditWallet, listCreditPacks, purchaseCredits } from "@/lib/credits";
 import { CharacterPortrait, ContactDialog } from "./contacts";
 import type { GameState } from "@/game/types";
 
 export function CombatCenter({ game, close }: { game: GameState; close: () => void }) {
-  const [tab, setTab] = useState<"weapons" | "training" | "credits">("weapons");
+  const [tab, setTab] = useState<"soldiers" | "weapons" | "training" | "credits">("soldiers");
   const [products, setProducts] = useState<{ id: string; price: string }[]>([]);
   const [enabled, setEnabled] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
   const [message, setMessage] = useState("");
   const buy = useRazor(s => s.buyWeapon); const equip = useRazor(s => s.equipWeapon); const train = useRazor(s => s.trainCombat);
+  const recruit = useRazor(s => s.recruitSoldier), heal = useRazor(s => s.healSoldiers), showFight = useRazor(s => s.showFight);
   const refreshWallet = useRazor(s => s.refreshWallet); const balance = useRazor(s => s.premiumBalance); const billingBusy = useRazor(s => s.billingBusy); const toast = useRazor(s => s.toast);
   const c = combatOf(game), level = levelOf(game), cost = trainingCost(game);
+  const medical = medicalOf(game), wounded = woundedCount(game);
+  const nextDeadline = medical.wounded.length ? Math.min(...medical.wounded.map(g => g.dueWeek)) : null;
   const busy = purchasing || billingBusy || !!game.cityMap?.order || !!c.ambush || game.phase !== "play";
   useEffect(() => { void refreshWallet(); creditWallet().then(w => setEnabled(w.enabled)).catch(() => {}); }, [refreshWallet]);
   useEffect(() => { if (tab !== "credits") return; listCreditPacks().then(r => setProducts(r.products)).catch(() => setMessage("Credit packs will appear here when available through Google Play.")); }, [tab]);
@@ -32,7 +36,28 @@ export function CombatCenter({ game, close }: { game: GameState; close: () => vo
     <div className="combat-profile"><div><p className="contact-kicker">COMBAT LEVEL</p><strong>{level}<small> / {MAX_LEVEL}</small></strong></div><div><b>{weaponOf(game).name}</b><p>+{Math.round((combatMultiplier(game) - 1) * 100)}% fight power</p><p>{c.wins} wins · {c.losses} defeats</p></div></div>
     <progress className="combat-xp" aria-label="Combat experience" value={level === MAX_LEVEL ? 1 : c.xp - xpForLevel(level)} max={level === MAX_LEVEL ? 1 : xpForLevel(level + 1) - xpForLevel(level)} />
     <p className="contact-fine">{level === MAX_LEVEL ? "Maximum level reached" : `${c.xp} / ${xpForLevel(level + 1)} total XP to level ${level + 1}`} · Fight to earn XP and Street Credits.</p>
-    <div className="combat-tabs">{(["weapons", "training", "credits"] as const).map(t => <button type="button" key={t} aria-pressed={tab === t} disabled={purchasing || billingBusy} onClick={() => setTab(t)}>{t === "weapons" ? "Weapons" : t === "training" ? "Training" : "Credit shop"}</button>)}</div>
+    {game.fightScene?.status !== "active" && game.fightScene && <button type="button" className="combat-shop-link" onClick={() => { close(); showFight(); }}>View last after-action report</button>}
+    <div className="combat-tabs">{(["soldiers", "weapons", "training", "credits"] as const).map(t => <button type="button" key={t} aria-pressed={tab === t} disabled={purchasing || billingBusy} onClick={() => setTab(t)}>{t === "soldiers" ? `Soldiers${wounded ? ` · ${wounded} wounded` : ""}` : t === "weapons" ? "Weapons" : t === "training" ? "Training" : "Credit shop"}</button>)}</div>
+    {tab === "soldiers" && <section className="soldier-roster">
+      <p className="contact-kicker">SOLDIER RECRUITMENT & FIELD MEDICS</p>
+      <div className="aar-grid" aria-label="Soldier roster">
+        <div><span>Active</span><strong>{game.crewCounts.muscle}/{SOLDIER_CAP}</strong></div>
+        <div><span>Wounded</span><strong>{wounded}</strong></div>
+        <div><span>Killed</span><strong>{medical.killed}</strong></div>
+        <div><span>Treated</span><strong>{medical.recovered}</strong></div>
+      </div>
+      <p className="contact-muted">Active soldiers can defend territory or fight for new blocks. Wounded troops are unavailable until patched up; permanent losses require new recruits.</p>
+      <button type="button" className="contact-primary" disabled={busy || game.ap < 1 || game.cash < 700 || game.crewCounts.muscle + wounded >= SOLDIER_CAP} onClick={recruit}>Recruit 1 soldier · {money(700)} · 1 move</button>
+      {wounded > 0 ? <div className="medical-station">
+        <h3>Field medics <span>⚕</span></h3>
+        <p className="medical-deadline">⚠ {wounded} soldier{wounded === 1 ? "" : "s"} wounded. Next deadline: end of week {nextDeadline}. Untreated soldiers die when week {Number(nextDeadline) + 1} begins.</p>
+        <p>Treatment costs {money(TREATMENT_COST)} per soldier, immediately returns them to active duty and does not use a move.</p>
+        <div className="medical-buttons">
+          <button type="button" disabled={busy || game.cash < TREATMENT_COST || game.crewCounts.muscle >= SOLDIER_CAP} onClick={() => heal(1)}>Patch up 1 · {money(TREATMENT_COST)}</button>
+          <button type="button" className="contact-primary" disabled={busy || game.cash < wounded * TREATMENT_COST || game.crewCounts.muscle + wounded > SOLDIER_CAP} onClick={() => heal(wounded)}>Treat all · {money(wounded * TREATMENT_COST)}</button>
+        </div>
+      </div> : <p className="contact-fine">No soldiers need treatment. Deaths are permanent; you can recruit replacements.</p>}
+    </section>}
     {tab === "weapons" && <><p className="contact-muted">Buy loadouts with game cash. Higher combat levels unlock stronger tiers. Your equipped loadout boosts block fights and ambush combat.</p><div className="weapon-list">{WEAPONS.map(w => {
       const owned = c.owned.includes(w.id); const locked = level < w.level;
       return <article key={w.id} className={`weapon-card tier-${w.tier}`}><div className="weapon-topline"><span>TIER {w.tier}</span><strong>+{Math.round(w.bonus * 100)}% power</strong></div><h3>{w.name}</h3><p>{w.description}</p><div className="weapon-buy"><span>{w.price ? money(w.price) : "Starting gear"}<small>Level {w.level}{locked ? " required" : " unlocked"}</small></span><button type="button" disabled={busy || locked || c.equipped === w.id || (!owned && game.cash < w.price)} className={owned ? "" : "contact-primary"} onClick={() => owned ? equip(w.id) : buy(w.id)}>{c.equipped === w.id ? "Equipped" : locked ? `Level ${w.level}` : owned ? "Equip" : "Buy & equip"}</button></div></article>;

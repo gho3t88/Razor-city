@@ -1,4 +1,6 @@
 import { garageEscapeBonus, medicalLosses, rememberEscape, rememberFight, specialistBonus } from "./empire";
+import { finishFight } from "./fight-scene";
+import { recordCasualties } from "./medical";
 import { eventEffects } from "./world-events";
 import type { GameState } from "./types";
 import type { Result } from "./logic";
@@ -97,8 +99,10 @@ export function resolveAmbush(state: GameState, choice: "run" | "fight" | "surre
   if (!ambush || !["run", "fight", "surrender"].includes(choice)) return { ok: false, error: "No ambush is waiting for that choice." };
   if (state.phase !== "play") return { ok: false, error: "Wait until the week is open." };
   const s = structuredClone(state); const c = s.combat!; c.ambush = null;
+  const beforeXp = c.xp, beforeCredits = c.credits, beforeCash = s.cash;
   const free = Math.max(0, s.crewCounts.muscle - s.districts.reduce((n, d) => n + d.stationMuscle, 0));
   let won = false, report = "";
+  let casualties = { killed: 0, wounded: 0, survivors: free };
   function robbery(cashRate: number, stockRate: number) {
     const cash = Math.min(5000, Math.round(s.cash * cashRate)); s.cash -= cash; s.stats.spent += cash;
     let stock = 0;
@@ -110,7 +114,12 @@ export function resolveAmbush(state: GameState, choice: "run" | "fight" | "surre
     grantFightRewards(s, won, ambush.attackers);
     s.heat = Math.min(100, s.heat + (won ? 6 : 4));
     if (won) { const loot = 400 + ambush.attackers * 180; s.cash += loot; s.stats.earned += loot; report = `Ambush beaten. +$${loot.toLocaleString("en-US")}. Continuing your trip.`; }
-    else { const losses = Math.min(free, medicalLosses(s, Math.max(1, Math.floor(ambush.attackers / 3)))); s.crewCounts.muscle -= losses; report = `Ambush lost. ${losses} muscle lost. ${robbery(.12, .2)} Retreated to safety.`; }
+    else {
+      const losses = Math.min(free, medicalLosses(s, Math.max(1, Math.floor(ambush.attackers / 3))));
+      casualties = recordCasualties(s, free, losses, false);
+      s.crewCounts.muscle -= losses;
+      report = `Ambush lost. ${casualties.killed} killed, ${casualties.wounded} wounded. ${robbery(.12, .2)} Retreated to safety.`;
+    }
   } else if (choice === "run") {
     const escaped = roll(s) < escapeChance(s);
     if (escaped) { c.escapes++; report = "You escaped the ambush and returned to your starting block."; }
@@ -120,6 +129,10 @@ export function resolveAmbush(state: GameState, choice: "run" | "fight" | "surre
   combatLog(s, report, won ? "gold" : choice === "run" ? "paper" : "blood");
   if (won) s.cityMap = { locationId: ambush.location, report, order: { kind: "travel", route: [ambush.location, ambush.destination], startedAt: now, arrivesAt: now + 900, endsAt: now + 900, soldiers: 0 } };
   else s.cityMap = { locationId: ambush.origin, order: null, report };
+  if (choice === "fight") finishFight(s, won, report, {
+    deployed: free, ...casualties, xpEarned: c.xp - beforeXp, creditsEarned: c.credits - beforeCredits,
+    cashChange: s.cash - beforeCash, territory: won ? "Travel resumes" : "Returned to starting block"
+  });
   return { ok: true, state: s, fx: won ? "hit" : "bad" };
 }
 
