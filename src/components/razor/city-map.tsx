@@ -164,17 +164,17 @@ export function CityMap({ game, onManage, onTrade, onGear, toast }: { game: Game
                   const col = b % split;
                   const bx = center.x - 58 + col * (split === 6 ? 22 : split === 4 ? 34 : 27) + ((index * 7 + b * 3) % 7 - 3);
                   // Leave a clear junction for the crew, route, and status icon.
-                  const by = center.y + (side < 0 ? -76 : 41) + ((index * 5 + b) % 7 - 3);
+                  const by = center.y + (side < 0 ? -76 : 51) + ((index * 5 + b) % 7 - 3);
                   const w = 12 + ((index + b * 3) % 10);
                   const h = 14 + ((index * 7 + b * 11) % 15);
                   if ((d.id === "cobra" || d.id === "sinks" || d.id === "glass") && b % 3 === 0) {
                     return <g key={b} pointerEvents="none"><ellipse cx={bx + 8} cy={by + 9} rx="13" ry="14" fill="#255744" stroke="#39745b" /><circle cx={bx + 3} cy={by + 5} r="6" fill="#63a475" /><circle cx={bx + 13} cy={by + 11} r="7" fill="#4b9369" /></g>;
                   }
-                  if (d.lab && b % 3 === 0) {
-                    return <g key={b} pointerEvents="none"><rect x={bx + 3} y={by + 5} width={w + 2} height={h + 1} fill="#080e13" opacity=".7" /><rect x={bx} y={by} width={w + 2} height={h} fill="#536e70" stroke="#9b9d8a" strokeWidth=".8" /><path d={`M${bx + 5} ${by - 8}v12h5v-7h4v7`} fill="none" stroke="#abb2a5" strokeWidth="3" /><path d={`M${bx + 2} ${by + 8}h${w - 2}`} stroke="#e2a65a" strokeWidth="2" /></g>;
-                  }
                   if (d.id === "hollow" && b % 3 === 0) {
                     return <g key={b} pointerEvents="none"><rect x={bx} y={by} width={w + 5} height="9" rx="1" fill="#bd865c" /><rect x={bx + 2} y={by + 11} width={w + 4} height="9" rx="1" fill="#628d9b" /><path d={`M${bx + 6} ${by}v20m8-20v20`} stroke="#273f47" strokeWidth="1.3" /></g>;
+                  }
+                  if (d.lab && b % 3 === 0) {
+                    return <g key={b} pointerEvents="none"><rect x={bx + 3} y={by + 5} width={w + 2} height={h + 1} fill="#080e13" opacity=".7" /><rect x={bx} y={by} width={w + 2} height={h} fill="#536e70" stroke="#9b9d8a" strokeWidth=".8" /><path d={`M${bx + 5} ${by - 8}v12h5v-7h4v7`} fill="none" stroke="#abb2a5" strokeWidth="3" /><path d={`M${bx + 2} ${by + 8}h${w - 2}`} stroke="#e2a65a" strokeWidth="2" /></g>;
                   }
                   return <g key={b} pointerEvents="none" transform={`rotate(${(index + b) % 3 === 0 ? -7 : (index + b) % 3 === 1 ? 4 : 9},${bx},${by})`}><rect x={bx + 4} y={by + 5} width={w} height={h} fill="#070e13" opacity=".8" /><rect x={bx} y={by} width={w} height={h} fill={roofTones[(index + Math.floor(b / 4)) % roofTones.length]} stroke="#b5b6a1" strokeWidth=".6" /><path d={`M${bx + 3} ${by + 4}h${w - 6}m${3 - w} 5h${w - 6}`} stroke={color} strokeOpacity=".85" strokeWidth="1.2" /><rect x={bx + w / 2 - 3} y={by + h / 2} width="6" height="6" fill={b % 3 === 0 ? "#e9c77e" : "#293c44"} /></g>;
                 })}
