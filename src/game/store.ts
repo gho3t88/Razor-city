@@ -1,13 +1,14 @@
 import { buyBusiness, upgradeBusiness, recruitSpecialist, supportSpecialist, payOffThreat } from "./empire";
 import { dismissFight } from "./fight-scene";
 import { refreshRegionEvents } from "./world-events";
+import { treatWounded } from "./medical";
 import { beginAmbushFight, buyWeapon, combatOf, equipWeapon, resolveAmbush, trainCombat, trainingCost } from "./combat";
 import { creditWallet, spendCredits } from "@/lib/credits";
 import { refreshRegionMarkets, tradeRegion } from "./region-economy";
 import { tickEncounters, decideDeal, deliverDeal, resolveTalk } from "./encounters";
 import { create } from "zustand";
 import { playSound, resumeAudio, setAudioMuted, unlockAudio } from "@/game/audio";
-import { continueReport, createGame, endWeek, isGameState, netWorth, refreshDefense, resolveChoice, setSelected } from "@/game/logic";
+import { continueReport, createGame, endWeek, isGameState, netWorth, recruit, refreshDefense, resolveChoice, setSelected } from "@/game/logic";
 import type { GameState, ProductId, StartOpts } from "@/game/types";
 import type { Result } from "@/game/logic";
 import { cityMapOf, completeCityOrder, issueCityOrder } from "@/game/city-map";
@@ -56,6 +57,8 @@ interface RazorStore {
   dismissFight: ()=>void;
   showFight: ()=>void;
   buyWeapon: (id: string) => void;
+  recruitSoldier: () => void;
+  healSoldiers: (count: number) => void;
   equipWeapon: (id: string) => void;
   resolveAmbush: (choice: "run" | "fight" | "surrender") => void;
   trainCombat: () => Promise<void>;
@@ -345,6 +348,8 @@ export const useRazor = create<RazorStore>((set, get) => ({
   showFight: () => {const g=get().game;if(!g?.fightScene||get().billingBusy)return;const s=structuredClone(g);s.fightScene!.dismissed=false;persist(s);set({game:s});},
   dismissFight: () => {const g=get().game;if(!g||get().billingBusy)return;const r=dismissFight(g);if(r.ok){persist(r.state);set({game:r.state});}},
   buyWeapon: id => { const g = get().game; if (g) get().commit(buyWeapon(g, id)); },
+  recruitSoldier: () => { const g = get().game; if (g) get().commit(recruit(g, "muscle")); },
+  healSoldiers: count => { const g = get().game; if (g) get().commit(treatWounded(g, count)); },
   equipWeapon: id => { const g = get().game; if (g) get().commit(equipWeapon(g, id)); },
   resolveAmbush: choice => { const g = get().game; if (g) get().commit(choice==="fight"?beginAmbushFight(g):resolveAmbush(g, choice)); },
   trainCombat: async () => {
