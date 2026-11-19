@@ -47,7 +47,7 @@ export function CombatCenter({ game, close }: { game: GameState; close: () => vo
         <div><span>Treated</span><strong>{medical.recovered}</strong></div>
       </div>
       <p className="contact-muted">Active soldiers can defend territory or fight for new blocks. Wounded troops are unavailable until patched up; permanent losses require new recruits.</p>
-      <button type="button" className="contact-primary" disabled={busy || game.ap < 1 || game.cash < 700 || game.crewCounts.muscle >= SOLDIER_CAP} onClick={recruit}>Recruit 1 soldier · {money(700)} · 1 move</button>
+      <button type="button" className="contact-primary" disabled={busy || game.ap < 1 || game.cash < 700 || game.crewCounts.muscle + wounded >= SOLDIER_CAP} onClick={recruit}>Recruit 1 soldier · {money(700)} · 1 move</button>
       {wounded > 0 ? <div className="medical-station">
         <h3>Field medics <span>⚕</span></h3>
         <p className="medical-deadline">⚠ {wounded} soldier{wounded === 1 ? "" : "s"} wounded. Next deadline: end of week {nextDeadline}. Untreated soldiers die when week {Number(nextDeadline) + 1} begins.</p>
