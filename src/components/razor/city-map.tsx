@@ -2,7 +2,7 @@ import { regionEvent } from "@/game/world-events";
 import { combatOf, levelOf, weaponOf } from "@/game/combat";
 import { regionMarket } from "@/game/region-economy";
 import { PRODUCTS } from "@/game/content";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cityMapOf, crewPoint, waypointRoute } from "@/game/city-map";
 import { adjacentToPlayer, freeMuscle, hitOutlook, isGangId } from "@/game/logic";
 import { districtPoint, districtPolygon } from "@/game/city-geometry";
@@ -26,14 +26,20 @@ export function CityMap({ game, onManage, onTrade, onGear, toast }: { game: Game
   const [now, setNow] = useState(Date.now());
   const [planning, setPlanning] = useState(false);
   const [stops, setStops] = useState<string[]>([]);
-  const [zoom, setZoom] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const zoomRef = useRef(1);
+  const zoomAnchor = useRef<{ x: number; y: number; mapX: number; mapY: number } | null>(null);
+  const pinch = useRef<{ distance: number; initialZoom: number } | null>(null);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [soldiers, setSoldiers] = useState(4);
   const map = cityMapOf(game);
   const order = map.order;
   const selected = game.districts.find(d => d.id === game.selectedId) ?? game.districts[0];
   const localMarket = regionMarket(game, selected.id);
+  const event = regionEvent(game, selected.id);
+  const atSelected = map.locationId === selected.id;
   const route = order?.route ?? waypointRoute(game, stops.length ? stops : [selected.id]);
+  const canTravel = route.length > 1 && (stops.length > 0 || !atSelected);
   const point = crewPoint(game, reducedMotion && order ? (now >= order.arrivesAt ? order.arrivesAt : order.startedAt) : now);
   const busy = !!order || !!combatOf(game).ambush;
   const fighting = !!order && (order.kind === "attack" || order.kind === "ambush") && now >= order.arrivesAt;
@@ -57,18 +63,59 @@ export function CityMap({ game, onManage, onTrade, onGear, toast }: { game: Game
     return () => window.clearInterval(timer);
   }, [order, tick]);
 
+  // Keep the point between the fingers (or at the center for toolbar zoom) stationary.
+  function changeZoom(next: number, clientX?: number, clientY?: number) {
+    const el = scroll.current;
+    const level = Math.round(Math.max(1, Math.min(3.25, next)) * 100) / 100;
+    if (!el || level === zoomRef.current) return;
+    const rect = el.getBoundingClientRect();
+    const x = clientX == null ? el.clientWidth / 2 : clientX - rect.left;
+    const y = clientY == null ? el.clientHeight / 2 : clientY - rect.top;
+    zoomAnchor.current = {
+      x, y,
+      mapX: (el.scrollLeft + x) / (el.clientWidth * zoomRef.current),
+      mapY: (el.scrollTop + y) / (el.clientHeight * zoomRef.current),
+    };
+    zoomRef.current = level;
+    setZoom(level);
+  }
+
+  useLayoutEffect(() => {
+    const el = scroll.current;
+    const anchor = zoomAnchor.current;
+    if (el && anchor) {
+      el.scrollLeft = anchor.mapX * el.clientWidth * zoom - anchor.x;
+      el.scrollTop = anchor.mapY * el.clientHeight * zoom - anchor.y;
+      zoomAnchor.current = null;
+    }
+  }, [zoom]);
+
   useEffect(() => {
-    if (zoom) return;
-    const frame = requestAnimationFrame(() => {
-      const el = scroll.current;
-      const svg = el?.querySelector("svg");
-      if (el && svg) {
-        const p = districtPoint(selected);
-        el.scrollTop = p.y / 620 * svg.getBoundingClientRect().height - el.clientHeight / 2;
-      }
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [selected.id, zoom]);
+    const el = scroll.current;
+    if (!el) return;
+    const distance = (touches: TouchList) => Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY);
+    const start = (e: TouchEvent) => {
+      if (e.touches.length === 2) pinch.current = { distance: Math.max(1, distance(e.touches)), initialZoom: zoomRef.current };
+    };
+    const move = (e: TouchEvent) => {
+      if (e.touches.length !== 2 || !pinch.current) return;
+      e.preventDefault(); // Don't zoom the entire Android WebView.
+      const x = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const y = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      changeZoom(pinch.current.initialZoom * distance(e.touches) / pinch.current.distance, x, y);
+    };
+    const end = (e: TouchEvent) => { if (e.touches.length < 2) pinch.current = null; };
+    el.addEventListener("touchstart", start, { passive: true });
+    el.addEventListener("touchmove", move, { passive: false });
+    el.addEventListener("touchend", end);
+    el.addEventListener("touchcancel", end);
+    return () => {
+      el.removeEventListener("touchstart", start);
+      el.removeEventListener("touchmove", move);
+      el.removeEventListener("touchend", end);
+      el.removeEventListener("touchcancel", end);
+    };
+  }, []);
 
   function choose(id: string) {
     select(id);
@@ -87,16 +134,11 @@ export function CityMap({ game, onManage, onTrade, onGear, toast }: { game: Game
         <span className="city-eyebrow">CITY OPERATIONS</span>
         <button type="button" className={`${control} city-gear-button`} onClick={onGear} aria-label="Black market and training">Gear · L{levelOf(game)}</button>
         <details className="city-key"><summary>Factions</summary><div>{Object.entries(colors).map(([id, color]) => <span key={id}><i style={{ background: color }} />{id === "player" ? "You" : id === "neutral" ? "Open" : game.gangs[id as keyof typeof game.gangs].name}</span>)}</div></details>
-        <button type="button" className={control} aria-pressed={zoom} onClick={() => {
-          setZoom(!zoom);
-          if (!zoom) requestAnimationFrame(() => {
-            const el = scroll.current;
-            if (el) { const p = districtPoint(selected); el.scrollTo({ left: p.x / 660 * 900 - el.clientWidth / 2, top: p.y / 620 * 845 - el.clientHeight / 2 }); }
-          });
-        }}>{zoom ? "Fit city" : "Zoom +"}</button>
+
       </div>
-      <div ref={scroll} className="city-scroll" tabIndex={zoom ? 0 : undefined} aria-label="City map; zoom and drag to explore streets">
-        <svg className={`city-svg ${zoom ? "city-zoom" : ""}`} viewBox="0 0 660 620" aria-label="Razor City district map">
+      <div className="city-map-frame">
+        <div ref={scroll} className="city-scroll" tabIndex={0} aria-label="City map. Pinch with two fingers to zoom; drag to pan.">
+        <svg className="city-svg" viewBox="0 0 660 620" style={{ width: `${zoom * 100}%`, height: `${zoom * 100}%` }} aria-label="Razor City district map">
           <defs>
             <pattern id="water-lines" width="24" height="12" patternUnits="userSpaceOnUse"><path d="M0 6h12" stroke="#36748a" strokeWidth="1" /></pattern>
             <pattern id="city-grain" width="12" height="12" patternUnits="userSpaceOnUse"><path d="M1 2h1m6 6h1" stroke="#98aaa0" strokeOpacity=".07" /></pattern>
@@ -113,16 +155,28 @@ export function CityMap({ game, onManage, onTrade, onGear, toast }: { game: Game
             const on = d.id === selected.id;
             const color = colors[d.owner];
             return (
-              <g key={d.id} className="city-region" role="button" tabIndex={0} aria-label={`${d.name}, ${d.owner === "neutral" ? "open" : d.owner === "player" ? "yours" : game.gangs[d.owner].name}`} aria-pressed={on} onClick={() => choose(d.id)} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); choose(d.id); } }}>
+              <g key={d.id} className="city-region" role="button" tabIndex={0} aria-label={`${d.name}, ${d.owner === "neutral" ? "open" : d.owner === "player" ? "yours" : game.gangs[d.owner].name}${regionEvent(game, d.id)?.kind === "lockdown" ? ", police lockdown" : ""}`} aria-pressed={on} onClick={() => choose(d.id)} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); choose(d.id); } }}>
                 <polygon points={polygon} fill={districtTones[index]} fillOpacity={on ? ".56" : ".32"} stroke={on ? "#ffe1a2" : color} strokeOpacity={on ? 1 : .75} strokeWidth={on ? 2.5 : 1.4} strokeDasharray={on ? "7 4" : d.owner === "neutral" ? "3 6" : undefined} />
-                {Array.from({ length: 10 }, (_, b) => {
-                  const side = b < 5 ? -1 : 1;
-                  const bx = center.x - 65 + (b % 5) * 27 + ((index * 3 + b) % 5);
-                  const by = center.y + side * 38 - 12;
-                  const w = 15 + ((index + b * 3) % 9);
-                  const h = 18 + ((index * 7 + b * 11) % 19);
-                  if ((index === 1 || index === 6) && b % 4 === 0) return <g key={b} pointerEvents="none"><ellipse cx={bx + 7} cy={by + 8} rx="11" ry="15" fill="#265e46" /><circle cx={bx + 6} cy={by + 4} r="7" fill="#4d9164" /></g>;
-                  return <g key={b} pointerEvents="none" transform={`rotate(${index % 2 ? -4 : 4},${bx},${by})`}><rect x={bx + 4} y={by + 5} width={w} height={h} fill="#070e13" opacity=".8" /><rect x={bx} y={by} width={w} height={h} fill={roofTones[index]} stroke="#b5b6a1" strokeWidth=".6" /><path d={`M${bx + 3} ${by + 4}h${w - 6}m${3 - w} 5h${w - 6}`} stroke={color} strokeOpacity=".85" strokeWidth="1.2" /><rect x={bx + w / 2 - 3} y={by + h / 2} width="6" height="6" fill={b % 3 === 0 ? "#e9c77e" : "#293c44"} /></g>;
+                {regionEvent(game, d.id)?.kind === "lockdown" && <polygon points={polygon} className="city-lockdown-region" pointerEvents="none" />}
+                {Array.from({ length: d.wealth > 1.3 ? 12 : d.lab ? 8 : 10 }, (_, b, all) => {
+                  const split = Math.ceil(all.length / 2);
+                  const side = b < split ? -1 : 1;
+                  const col = b % split;
+                  const bx = center.x - 58 + col * (split === 6 ? 22 : split === 4 ? 34 : 27) + ((index * 7 + b * 3) % 7 - 3);
+                  // Leave a clear junction for the crew, route, and status icon.
+                  const by = center.y + (side < 0 ? -76 : 41) + ((index * 5 + b) % 7 - 3);
+                  const w = 12 + ((index + b * 3) % 10);
+                  const h = 14 + ((index * 7 + b * 11) % 15);
+                  if ((d.id === "cobra" || d.id === "sinks" || d.id === "glass") && b % 3 === 0) {
+                    return <g key={b} pointerEvents="none"><ellipse cx={bx + 8} cy={by + 9} rx="13" ry="14" fill="#255744" stroke="#39745b" /><circle cx={bx + 3} cy={by + 5} r="6" fill="#63a475" /><circle cx={bx + 13} cy={by + 11} r="7" fill="#4b9369" /></g>;
+                  }
+                  if (d.lab && b % 3 === 0) {
+                    return <g key={b} pointerEvents="none"><rect x={bx + 3} y={by + 5} width={w + 2} height={h + 1} fill="#080e13" opacity=".7" /><rect x={bx} y={by} width={w + 2} height={h} fill="#536e70" stroke="#9b9d8a" strokeWidth=".8" /><path d={`M${bx + 5} ${by - 8}v12h5v-7h4v7`} fill="none" stroke="#abb2a5" strokeWidth="3" /><path d={`M${bx + 2} ${by + 8}h${w - 2}`} stroke="#e2a65a" strokeWidth="2" /></g>;
+                  }
+                  if (d.id === "hollow" && b % 3 === 0) {
+                    return <g key={b} pointerEvents="none"><rect x={bx} y={by} width={w + 5} height="9" rx="1" fill="#bd865c" /><rect x={bx + 2} y={by + 11} width={w + 4} height="9" rx="1" fill="#628d9b" /><path d={`M${bx + 6} ${by}v20m8-20v20`} stroke="#273f47" strokeWidth="1.3" /></g>;
+                  }
+                  return <g key={b} pointerEvents="none" transform={`rotate(${(index + b) % 3 === 0 ? -7 : (index + b) % 3 === 1 ? 4 : 9},${bx},${by})`}><rect x={bx + 4} y={by + 5} width={w} height={h} fill="#070e13" opacity=".8" /><rect x={bx} y={by} width={w} height={h} fill={roofTones[(index + Math.floor(b / 4)) % roofTones.length]} stroke="#b5b6a1" strokeWidth=".6" /><path d={`M${bx + 3} ${by + 4}h${w - 6}m${3 - w} 5h${w - 6}`} stroke={color} strokeOpacity=".85" strokeWidth="1.2" /><rect x={bx + w / 2 - 3} y={by + h / 2} width="6" height="6" fill={b % 3 === 0 ? "#e9c77e" : "#293c44"} /></g>;
                 })}
 
               </g>
@@ -149,6 +203,7 @@ export function CityMap({ game, onManage, onTrade, onGear, toast }: { game: Game
                   {lines.map((line, i) => <tspan key={line} x={p.x} y={p.y - (lines.length === 1 ? 60 : 67) + i * 14}>{line}</tspan>)}
                 </text>
                 <circle cx={p.x + 54} cy={p.y - 76} r="2.5" fill={color} />
+                {regionEvent(game, d.id)?.kind === "lockdown" && <g transform={`translate(${p.x + 46},${p.y - 33})`} className="city-lockdown-badge"><title>Police lockdown in ${d.name}</title><circle r="12" fill="#792725" stroke="#ffb29c" strokeWidth="2" /><text y="5" textAnchor="middle" fontSize="16" fontWeight="900" fill="#fff2de">!</text></g>}
               </g>;
             })}
           </g>
@@ -178,13 +233,19 @@ export function CityMap({ game, onManage, onTrade, onGear, toast }: { game: Game
             </g>}
           </g>
         </svg>
+        </div>
+        <div className="city-zoom-controls" role="group" aria-label="Map zoom">
+          <button type="button" aria-label="Zoom out" disabled={zoom <= 1} onClick={() => changeZoom(zoomRef.current / 1.4)}>−</button>
+          <button type="button" aria-label="Zoom in" disabled={zoom >= 3.25} onClick={() => changeZoom(zoomRef.current * 1.4)}>+</button>
+          <button type="button" aria-label="Reset map view" disabled={zoom <= 1} onClick={() => changeZoom(1)}>Fit</button>
+        </div>
       </div>
       <div className="city-orders">
         <div className="city-selection"><div><p className="city-eyebrow" style={{ color: colors[selected.owner] }}>{owner}</p><h3>{selected.name}</h3></div><span>{busy ? "ORDER ACTIVE" : `DEF ${selected.defense}`}</span></div>
-        {regionEvent(game,selected.id)&&<p className="city-event-strip">{regionEvent(game,selected.id)!.name} · Local market & travel effects</p>}
+        {event && <p className={`city-event-strip ${event.kind === "lockdown" ? "lockdown" : ""}`} role={event.kind === "lockdown" ? "alert" : undefined}>{event.kind === "lockdown" ? "⚠ " : ""}{event.name.toUpperCase()} · {event.description}</p>}
         <div className="city-market-note"><span>{localMarket.eventProduct ? `${PRODUCTS[localMarket.eventProduct].name} ${localMarket.event === "surge" ? "▲ PRICE SPIKE" : "▼ PRICE DROP"}` : "LOCAL PRICES & DEMAND"}</span><span>Dust ${localMarket.products.dust.sell}/unit</span></div>
         <div className="city-action-row">
-          <button type="button" className={`${control} bg-gold text-ink font-semibold`} disabled={busy || game.phase !== "play" || route.length < 2} onClick={() => { travel(stops.length ? stops : [selected.id]); setStops([]); setPlanning(false); }}>Travel {stops.length ? "route" : "here"}</button>
+          <button type="button" className={`${control} bg-gold text-ink font-semibold`} disabled={busy || game.phase !== "play" || !canTravel} onClick={() => { travel(stops.length ? stops : [selected.id]); setStops([]); setPlanning(false); }}>{stops.length ? "Travel route" : atSelected ? "Already here" : "Travel here"}</button>
           <button type="button" className={control} aria-pressed={planning} disabled={busy || game.phase !== "play"} onClick={() => { setPlanning(!planning); setStops([]); }}>{planning ? "Cancel route" : "Waypoints"}</button>
           <button type="button" className={control} onClick={onTrade}>Trade</button>
           <button type="button" className={control} onClick={onManage}>Manage</button>
