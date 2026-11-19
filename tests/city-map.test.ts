@@ -21,6 +21,11 @@ for (const a of game.districts) for (const b of game.districts) {
   }
 }
 assert.deepEqual(waypointRoute(game, ["blackwater", "sinks"]), ["hollow", "blackwater", "cobra", "sinks"]);
+assert.deepEqual(waypointRoute(game, ["hollow"]), ["hollow"]);
+const alreadyHere = issueCityOrder(game, ["hollow"], 0, 1000);
+assert.equal(alreadyHere.ok, false, "Travel to the crew's current location must be rejected");
+if (!alreadyHere.ok) assert.match(alreadyHere.error, /already there/i);
+
 checks.push("Legacy saves initialize at the docks; all district routes use connected streets.");
 
 const travel = issueCityOrder(game, ["blackwater", "sinks"], 0, 1000);
