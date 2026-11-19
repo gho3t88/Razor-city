@@ -29,11 +29,40 @@ try {
     await inside(page.getByRole("button", { name: "Attack · 1 move", exact: true }), width, height);
     await inside(page.getByRole("button", { name: "Manage", exact: true }), width, height);
     await inside(page.getByRole("button", { name: "Close week", exact: true }), width, height);
-    const layout = await page.evaluate(() => ({ pageHeight: document.documentElement.scrollHeight, pageWidth: document.documentElement.scrollWidth, header: document.querySelector(".game-topbar").getBoundingClientRect().height, map: document.querySelector(".city-scroll").getBoundingClientRect().height }));
+    const layout = await page.evaluate(() => {
+      const items = [
+        ["title", ".game-brand strong"],
+        ["week and difficulty", ".game-brand span"],
+        ["Deals", ".game-topbar .contacts-trigger"],
+        ["sound", ".game-topbar .game-sound"],
+        ["options", ".game-topbar .game-settings"],
+      ].map(([name, selector]) => {
+        const el = document.querySelector(selector);
+        const rect = el.getBoundingClientRect();
+        return { name, left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, textFits: el.scrollWidth <= el.clientWidth + 1 };
+      });
+      return {
+        pageHeight: document.documentElement.scrollHeight,
+        pageWidth: document.documentElement.scrollWidth,
+        header: document.querySelector(".game-topbar").getBoundingClientRect().height,
+        map: document.querySelector(".city-scroll").getBoundingClientRect().height,
+        items,
+      };
+    });
     assert.ok(layout.pageHeight <= height + 1, JSON.stringify(layout));
     assert.ok(layout.pageWidth <= width + 1, JSON.stringify(layout));
-    assert.ok(layout.header < 70, JSON.stringify(layout));
+    assert.ok(layout.header < (width <= 480 ? 95 : 70), JSON.stringify(layout));
     assert.ok(layout.map > 120, JSON.stringify(layout));
+    for (const item of layout.items) {
+      assert.ok(item.left >= -1 && item.right <= width + 1 && item.textFits, `Header item clipped at ${width}x${height}: ${JSON.stringify(item)}`);
+    }
+    for (let i = 0; i < layout.items.length; i++) {
+      for (let j = i + 1; j < layout.items.length; j++) {
+        const a = layout.items[i], b = layout.items[j];
+        const overlap = a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
+        assert.ok(!overlap, `Header collision at ${width}x${height}: ${a.name} / ${b.name}`);
+      }
+    }
     await page.screenshot({ path: `test-results/city-${width}x${height}.png` });
     console.log(`PASS ${width}x${height}: map ${Math.round(layout.map)}px; Travel and Attack visible without scrolling`);
   }
