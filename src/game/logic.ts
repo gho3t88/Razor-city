@@ -1,7 +1,7 @@
 import { applyEmpireWeek, empireOf, hasThreat, medicalLosses, queueRetaliation, resolveRetaliations, specialistBonus } from "./empire";
 import { eventEffects, refreshRegionEvents, regionEvent } from "./world-events";
 import { finishFight } from "./fight-scene";
-import { expireUntreated, recordCasualties } from "./medical";
+import { expireUntreated, recordCasualties, woundedCount } from "./medical";
 import { combatMultiplier, combatOf, grantFightRewards, levelOf, weaponOf } from "./combat";
 import { regionMarket, refreshRegionMarkets, consumeLocalDemand } from "./region-economy";
 import { advanceEncounters } from "./encounters";
@@ -434,7 +434,7 @@ export function recruit(state: GameState, kind: "muscle" | "dealers"): Result {
   const ap = spendAp(next);
   if (ap) return fail(ap);
   if (kind === "muscle") {
-    if (next.crewCounts.muscle >= 40) return fail("No more muscle will take your money.");
+    if (next.crewCounts.muscle + woundedCount(next) >= 40) return fail("Your active and wounded soldier roster is full.");
     const cost = 700;
     if (next.cash < cost) return fail(`Hiring muscle costs ${money(cost)}.`);
     next.cash -= cost;
