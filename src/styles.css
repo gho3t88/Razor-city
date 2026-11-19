@@ -228,7 +228,46 @@
 .game-topbar .contacts-trigger { width: auto; padding: 0 8px; font-size: 11px; color: #e0b15a; border: 1px solid #4d5141; border-radius: 8px; min-height: 40px; }
 @media (max-width: 360px) { .contact-roster { grid-template-columns: 1fr; } .contact-person { gap: 8px; } .deal-status { font-size: 9px; } .contact-content { padding: 12px; } .game-brand span { font-size: 8px; } .game-topbar { gap: 5px; } }
 
-@media (max-width: 480px) { .game-brand { flex-direction: column; align-items: flex-start; gap: 0; } .game-brand span { font-size: 9px; } }
+/* Compact phone header: keep week/difficulty and Deals on their own row.
+   A fixed action column prevents the title/status text from sliding under buttons. */
+@media (max-width: 480px) {
+  .game-topbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px 44px;
+    grid-template-rows: 44px 32px;
+    column-gap: 4px;
+    row-gap: 0;
+    padding: 4px 10px;
+  }
+  .game-brand { display: contents; }
+  .game-brand strong {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+    white-space: nowrap;
+  }
+  .game-brand span {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: center;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+  .game-topbar .game-sound { grid-column: 2; grid-row: 1; }
+  .game-topbar .game-settings { grid-column: 3; grid-row: 1; }
+  .game-topbar .contacts-trigger {
+    grid-column: 2 / 4;
+    grid-row: 2;
+    justify-self: end;
+    align-self: center;
+    min-height: 30px;
+    white-space: nowrap;
+  }
+}
+@media (max-width: 360px) {
+  .game-brand strong { font-size: 16px; }
+  .game-brand span { font-size: 9px; }
+}
 
 .region-market-backdrop { position: fixed; inset: 0; z-index: 45; background: #060e16e6; padding: 12px; display: flex; align-items: center; justify-content: center; }
 .region-market-dialog { width: 100%; max-width: 550px; max-height: 100%; display: flex; flex-direction: column; border: 1px solid #56767b; background: #11242d; color: #eee9dc; border-radius: 16px; overflow: hidden; outline: none; }
