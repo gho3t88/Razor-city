@@ -15,7 +15,7 @@ try {
     const heading = page.locator(".start-screen h1");
     const headingBox = await heading.boundingBox();
     assert.ok(headingBox, "Start-screen title is absent");
-    assert.match(await heading.innerText(), /RAZOR\\s+CITY/);
+    assert.match(await heading.innerText(), /RAZOR\s+CITY/);
     assert.ok(headingBox.y >= 0 && headingBox.y < height, "RAZOR title starts offscreen");
     const layout = await page.locator(".start-screen-layout").boundingBox();
     assert.ok(layout && layout.y >= 0, "Start-screen layout is clipped above viewport");
