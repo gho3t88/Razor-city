@@ -22,6 +22,7 @@ async function inside(locator, width, height) {
 try {
   await page.goto("http://127.0.0.1:5178");
   await page.getByRole("button", { name: "Take the docks", exact: true }).click();
+  await page.getByRole("button", { name: "Skip tutorial", exact: true }).click();
   // Tester #06: keyboard Escape and Android Back share the same handler.
   // Dismissing a sheet must not exit the game or discard saved progress.
   await page.getByRole("button", { name: "Market", exact: true }).click();
