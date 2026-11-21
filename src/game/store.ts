@@ -362,8 +362,8 @@ export const useRazor = create<RazorStore>((set, get) => ({
   recruitSpecialist: id => {const g=get().game;if(g)get().commit(recruitSpecialist(g,id));},
   supportSpecialist: id => {const g=get().game;if(g)get().commit(supportSpecialist(g,id));},
   payOffThreat: id => {const g=get().game;if(g)get().commit(payOffThreat(g,id));},
-  showFight: () => {const g=get().game;if(!g?.fightScene||get().billingBusy)return;const s=structuredClone(g);s.fightScene!.dismissed=false;persist(s);set({game:s});},
-  dismissFight: () => {const g=get().game;if(!g||get().billingBusy)return;const r=dismissFight(g);if(r.ok){persist(r.state);set({game:r.state});}},
+  showFight: () => {const g=get().game;if(!g?.fightScene||get().billingBusy)return;const s=structuredClone(g);s.fightScene!.dismissed=false;if(!persist(s)){set({toast:"Could not save the fight report."});return;}set({game:s});},
+  dismissFight: () => {const g=get().game;if(!g||get().billingBusy)return;const r=dismissFight(g);if(r.ok){if(!persist(r.state)){set({toast:"Could not save the dismissed report."});return;}set({game:r.state});}},
   upgradeTerritory: (id, kind) => { const g = get().game; if (g) get().commit(upgradeTerritory(g, id, kind)); },
   treatWounded: count => { const g = get().game; if (g) get().commit(treatWounded(g, count)); },
   buyWeapon: id => { const g = get().game; if (g) get().commit(buyWeapon(g, id)); },
@@ -397,7 +397,10 @@ export const useRazor = create<RazorStore>((set, get) => ({
     if (!game || get().billingBusy || combatOf(game).ambush || get().modal !== "none") return;
     const result = tickEncounters(game);
     if (!result?.ok) return;
-    persist(result.state);
+    if (!persist(result.state)) {
+      set({ toast: "Could not save the incoming contact. Free storage and try again." });
+      return;
+    }
     set({ game: result.state, saveMeta: metaOf(result.state) });
     if (result.state.encounters?.pending) playSound("tick");
   },
