@@ -355,3 +355,13 @@
   padding-left: env(safe-area-inset-left, 0px);
   padding-right: env(safe-area-inset-right, 0px);
 }
+
+/* Final narrow-device pass: keep trade actions reachable above Android gesture navigation. */
+.region-market-dialog,.contact-dialog{max-height:100%;min-height:0;min-width:0}
+.region-market-content,.contact-content{overflow-y:auto;overscroll-behavior:contain}
+.market-trade-buttons{display:flex;flex-wrap:wrap;gap:8px}
+.market-trade-buttons button{min-width:0;flex:1 1 130px;min-height:44px;white-space:normal;overflow-wrap:anywhere}
+.market-trade-controls{flex-wrap:wrap}
+.market-trade-controls input{max-width:100%;min-width:0}
+@media(max-width:380px){.region-market-dialog,.contact-dialog{width:100%;max-width:100%}.market-price-grid{gap:5px}.market-product{min-width:0}.market-stock{overflow-wrap:anywhere}}
+@media(prefers-reduced-motion:reduce){.battle-tracers i,.is-fighting .battle-figure{animation:none!important}}
