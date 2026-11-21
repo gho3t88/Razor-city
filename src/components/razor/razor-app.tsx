@@ -4,12 +4,14 @@ import { FightScreen } from "./fight-screen";
 import { CombatCenter, AmbushPopup } from "./combat-center";
 import { combatOf, levelOf, weaponOf } from "@/game/combat";
 import { RegionMarket } from "./region-market";
+import { InventoryPanel } from "./inventory-panel";
 import { regionMarket } from "@/game/region-economy";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import {
   BookOpen,
+  Package,
   Coins,
   Flame,
   Minus,
@@ -245,6 +247,8 @@ function PlayScreen() {
   const watchingFight=!!game?.fightScene&&!game.fightScene.dismissed;
   const [combatOpen, setCombatOpen] = useState(false);
   const [tradeOpen, setTradeOpen] = useState(false);
+  const [inventoryOpen, setInventoryOpen] = useState(false);
+  const [inventoryProduct, setInventoryProduct] = useState<ProductId | null>(null);
   const [contactsOpen, setContactsOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -261,6 +265,7 @@ function PlayScreen() {
     if (watchingFight) { useRazor.getState().dismissFight(); return; }
     if (contactsOpen) { setContactsOpen(false); return; }
     if (tradeOpen) { setTradeOpen(false); return; }
+    if (inventoryOpen) { setInventoryOpen(false); return; }
     if (combatOpen) { setCombatOpen(false); return; }
     if (empireOpen) { setEmpireOpen(false); return; }
     if (settingsOpen) { setSettingsOpen(false); return; }
@@ -311,12 +316,12 @@ function PlayScreen() {
   }, [game?.cityMap?.order]);
 
   useEffect(() => {
-    if (inspectorOpen || settingsOpen || contactsOpen || tradeOpen || combatOpen || empireOpen || watchingFight || modal !== "none") return;
+    if (inspectorOpen || settingsOpen || contactsOpen || tradeOpen || inventoryOpen || combatOpen || empireOpen || watchingFight || modal !== "none") return;
     const tick = () => { if (document.visibilityState === "visible") tickContacts(); };
     tick();
     const timer = window.setInterval(tick, 1000);
     return () => window.clearInterval(timer);
-  }, [tickContacts, inspectorOpen, settingsOpen, contactsOpen, tradeOpen, combatOpen, empireOpen, watchingFight, modal]);
+  }, [tickContacts, inspectorOpen, settingsOpen, contactsOpen, tradeOpen, inventoryOpen, combatOpen, empireOpen, watchingFight, modal]);
 
   if (!game) return null;
   const selected = game.districts.find((d) => d.id === game.selectedId) ?? game.districts[0];
@@ -343,6 +348,7 @@ function PlayScreen() {
       </section>
       <nav className="game-bottom" aria-label="Empire actions">
         <button type="button" disabled={!playing || busy} onClick={() => setModal("market")}><Store size={18} />Market</button>
+        <button type="button" onClick={() => setInventoryOpen(true)}><Package size={18} />Inventory</button>
         <button type="button" onClick={() => setModal("ledger")}><BookOpen size={18} />Ledger</button>
         <button type="button" className="game-close-week" disabled={!playing || busy} onClick={() => { if (window.confirm("Close this week and calculate results? You cannot undo this action.")) closeWeek(); }}>Close week</button>
       </nav>
@@ -362,7 +368,8 @@ function PlayScreen() {
       <AmbushPopup game={game} />
       <FightScreen game={game}/>
       {billingBusy && <div className="training-recovery" role="status"><p>{toast || "Saving training. Please wait…"}</p></div>}
-      {tradeOpen && <RegionMarket game={game} close={() => setTradeOpen(false)} />}
+      {tradeOpen && <RegionMarket game={game} close={() => { setTradeOpen(false); setInventoryProduct(null); }} initialProduct={inventoryProduct} />}
+      {inventoryOpen && <InventoryPanel game={game} close={() => setInventoryOpen(false)} openMarket={product => { setInventoryProduct(product); setInventoryOpen(false); useRazor.getState().select(cityMapOf(game).locationId); setTradeOpen(true); }} />}
       {contactsOpen && <ContactsPanel game={game} close={() => setContactsOpen(false)} />}
       <ContactPopup game={game} />
       {modal === "market" && playing ? <MarketSheet game={game} onGear={() => { setModal("none"); setCombatOpen(true); }} /> : null}
