@@ -230,6 +230,16 @@ function StartScreen() {
   );
 }
 
+const TUTORIAL_STEPS = [
+  { title: "Welcome to Razor City", body: "Build your crew, earn cash, and take territory. This quick tour shows you where to start." },
+  { title: "Watch your resources", body: "The top bar shows cash, police heat, respect, and remaining moves. High heat increases raid risk." },
+  { title: "Check your inventory", body: "Tap Inventory at the bottom to see what you own, current local sale prices, and how much buyers will take." },
+  { title: "Buy and sell", body: "Market lets you buy stock and station dealers. Select a region on the city map to open its regional market and trade at local prices." },
+  { title: "Explore the city", body: "Tap regions on the map to inspect them, travel, and plan territory expansion. Travel and fighting can be risky." },
+  { title: "Grow your crew", body: "Open Game Options for Businesses & Crew or Black Market & Training. Recruit, equip, and protect your people before fights." },
+  { title: "Close your week", body: "When you're ready, tap Close week to collect results and advance. You'll be asked to confirm first. Good luck!" },
+] as const;
+
 function PlayScreen() {
   const game = useRazor((s) => s.game);
   const modal = useRazor((s) => s.modal);
@@ -248,6 +258,19 @@ function PlayScreen() {
   const [combatOpen, setCombatOpen] = useState(false);
   const [tradeOpen, setTradeOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState<number | null>(null);
+  const tutorialKey = game ? `razor-tutorial-${game.seed}-${game.boss}-${game.crew}` : "";
+  useEffect(() => {
+    if (!game || game.week !== 1 || game.phase !== "play") return;
+    try {
+      if (window.localStorage.getItem(tutorialKey) !== "done") setTutorialStep(0);
+    } catch { setTutorialStep(0); }
+  }, [tutorialKey, !!game]);
+  const finishTutorial = () => {
+    try { window.localStorage.setItem(tutorialKey, "done"); } catch { /* Tutorial remains skippable without storage. */ }
+    setTutorialStep(null);
+  };
+
   const [inventoryProduct, setInventoryProduct] = useState<ProductId | null>(null);
   const [contactsOpen, setContactsOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
@@ -259,6 +282,7 @@ function PlayScreen() {
   const backHandler = useRef<() => void>(() => {});
   backHandler.current = () => {
     if (billingBusy) return; // Never interrupt a Google Play purchase.
+    if (tutorialStep !== null) { finishTutorial(); return; }
     if (exitPromptOpen) { setExitPromptOpen(false); return; }
     // These popups require a choice; a hardware Back press must not discard it.
     if (game?.encounters?.pending || (game && combatOf(game).ambush)) return;
@@ -359,6 +383,7 @@ function PlayScreen() {
         <p className="mt-2 text-sm text-mute">Weekly sales forecast: {money(preview.cash)} · +{Math.round(preview.heat)} heat</p>
         <button type="button" className="combat-opening mt-4" onClick={() => { setSettingsOpen(false); setCombatOpen(true); }}>Black Market & Training</button>
         <button type="button" className="combat-opening" onClick={()=>{setSettingsOpen(false);setEmpireOpen(true);}}>Businesses & Crew</button>
+        <button type="button" className="combat-opening" onClick={() => { setSettingsOpen(false); setTutorialStep(0); }}>Replay beginning tutorial</button>
         <div className="my-4"><TipSupport /></div>
         <button type="button" className={btnGhost} onClick={() => { void showPrivacyOptions(); }}>Privacy choices</button>
       </Sheet>}
@@ -377,6 +402,22 @@ function PlayScreen() {
       {game.phase === "event" && game.pending ? <EventSheet /> : null}
       {game.phase === "summary" && game.report ? <SummarySheet /> : null}
       {game.phase === "won" || game.phase === "lost" ? <EndingSheet /> : null}
+      {tutorialStep !== null && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-ink/90 p-4">
+          <section role="dialog" aria-modal="true" aria-labelledby="tutorial-title" className="w-full max-w-md rounded-xl border border-gold bg-panel p-5 shadow-2xl">
+            <p className="text-xs font-semibold tracking-widest text-gold">GETTING STARTED · {tutorialStep + 1} / {TUTORIAL_STEPS.length}</p>
+            <h2 id="tutorial-title" className="mt-2 font-display text-2xl text-paper">{TUTORIAL_STEPS[tutorialStep].title}</h2>
+            <p className="mt-3 text-sm leading-relaxed text-paper">{TUTORIAL_STEPS[tutorialStep].body}</p>
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
+              <button type="button" className={btnGhost} onClick={finishTutorial}>Skip tutorial</button>
+              <div className="flex gap-2">
+                {tutorialStep > 0 && <button type="button" className={btnGhost} onClick={() => setTutorialStep(s => s === null ? null : Math.max(0, s - 1))}>Back</button>}
+                <button type="button" className={btnGold} onClick={() => tutorialStep === TUTORIAL_STEPS.length - 1 ? finishTutorial() : setTutorialStep(s => s === null ? null : s + 1)}>{tutorialStep === TUTORIAL_STEPS.length - 1 ? "Start playing" : "Next"}</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
       {exitPromptOpen && (
         <div className="fixed inset-0 z-[100] flex items-end justify-center bg-ink/85 p-3 sm:items-center">
           <section role="alertdialog" aria-modal="true" aria-labelledby="return-to-menu-title" className="w-full max-w-md rounded-xl border border-line bg-panel p-5">
