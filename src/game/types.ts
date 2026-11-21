@@ -32,6 +32,8 @@ export interface District {
   corners: number;
   loyalty: number;
   stationMuscle: number;
+  cameras?: number;
+  barracks?: number;
   stationDealers: number;
   focus: ProductId | "auto";
 }
