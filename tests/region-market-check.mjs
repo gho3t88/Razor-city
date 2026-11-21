@@ -12,6 +12,7 @@ async function game() { return page.evaluate(async () => (await import('/src/gam
 try {
   await page.goto("http://127.0.0.1:5180");
   await page.getByRole("button", { name: "Take the docks", exact: true }).click();
+  await page.getByRole("button", { name: "Skip tutorial", exact: true }).click();
   await page.getByRole("button", { name: "Inventory", exact: true }).click();
   const inventory = page.getByRole("dialog", { name: "Your inventory" });
   await inventory.waitFor();
