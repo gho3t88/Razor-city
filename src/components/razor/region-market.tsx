@@ -16,6 +16,7 @@ export function RegionMarket({ game, close }: { game: GameState; close: () => vo
   const toast = useRazor(s => s.toast);
   const [quantities, setQuantities] = useState<Record<ProductId, number>>({ dust: 10, velvet: 10, ice: 10, grow: 10 });
   const [compare, setCompare] = useState(false);
+  const [confirmation, setConfirmation] = useState<{ region: string; product: ProductId; quantity: number; side: "buy" | "sell"; unitPrice: number } | null>(null);
   const dialog = useRef<HTMLElement>(null);
   const present = cityMapOf(game).locationId === selected.id;
   const busy = !!cityMapOf(game).order || game.phase !== "play";
@@ -50,7 +51,7 @@ export function RegionMarket({ game, close }: { game: GameState; close: () => vo
           <div className="market-price-grid"><div><span>SELL / UNIT</span><strong>{money(q.sell)}</strong></div><div><span>BUY / UNIT</span><strong>{money(q.buy)}</strong></div><div><span>DEMAND</span><strong>{q.demand}%</strong></div></div>
           <div className="market-stock"><span>Buyers want {q.buyers}</span><span>Local stock {q.supply}</span><span>You hold {game.stash[product]}</span><span>Affordable: {canBuy} units ({money(canBuy * q.buy)})</span></div>
           <div className="market-trade-controls"><label>Units<input aria-label={`${PRODUCTS[product].name} units`} type="number" min="1" max="9999" step="1" value={quantity} onChange={e => setQuantities(v => ({ ...v, [product]: Math.min(9999, Math.max(1, Math.floor(Number(e.target.value) || 1))) }))} /></label><button type="button" onClick={() => setQuantities(v => ({ ...v, [product]: Math.max(1, canSell) }))}>Max sell</button><button type="button" disabled={canBuy === 0} onClick={() => setQuantities(v => ({ ...v, [product]: canBuy }))}>Max buy · {canBuy} ({money(canBuy * q.buy)})</button></div>
-          <div className="market-trade-buttons"><button type="button" className="market-sell" disabled={!present || busy || quantity > canSell} onClick={() => trade(selected.id, product, quantity, "sell")}>Sell {quantity} · {money(quantity * q.sell)}</button><button type="button" disabled={!present || busy || canBuy === 0 || quantity > canBuy} onClick={() => trade(selected.id, product, quantity, "buy")}>Buy {quantity} · {money(quantity * q.buy)}</button></div>
+          <div className="market-trade-buttons"><button type="button" className="market-sell" disabled={!present || busy || quantity > canSell} onClick={() => setConfirmation({ region: selected.id, product, quantity, side: "sell", unitPrice: q.sell })}>Sell {quantity} · {money(quantity * q.sell)}</button><button type="button" disabled={!present || busy || canBuy === 0 || quantity > canBuy} onClick={() => setConfirmation({ region: selected.id, product, quantity, side: "buy", unitPrice: q.buy })}>Buy {quantity} · {money(quantity * q.buy)}</button></div>
           {present && quantity > q.buyers && <p className="market-help">Local buyers cannot take that many this week.</p>}
           {compare && <div className="market-comparison"><p>BEST SELL PRICES · {PRODUCTS[product].name}</p>{[...game.districts].sort((a, b) => regionMarket(game, b.id).products[product].sell - regionMarket(game, a.id).products[product].sell).slice(0, 4).map(d => {
             const quote = regionMarket(game, d.id).products[product];
@@ -58,6 +59,19 @@ export function RegionMarket({ game, close }: { game: GameState; close: () => vo
           })}<small>Live quotes may move by the time you arrive.</small></div>}
         </article>;
       })}</div>
+      {confirmation && <div role="group" aria-label="Confirm regional trade" className="market-news">
+        <strong>CONFIRM {confirmation.side.toUpperCase()}</strong>
+        <p>{confirmation.quantity} {PRODUCTS[confirmation.product].name} in {game.districts.find(d => d.id === confirmation.region)?.name} at {money(confirmation.unitPrice)} each. Total: <strong>{money(confirmation.quantity * confirmation.unitPrice)}</strong>.</p>
+        <div className="market-trade-buttons">
+          <button type="button" onClick={() => setConfirmation(null)}>Cancel</button>
+          <button type="button" className="market-sell" onClick={() => {
+            const pending = confirmation;
+            setConfirmation(null);
+            // The game action revalidates cash, demand, stock, location and current prices.
+            trade(pending.region, pending.product, pending.quantity, pending.side);
+          }}>Confirm {confirmation.side}</button>
+        </div>
+      </div>}
       {toast && <p className="market-feedback" role="status">{toast}</p>}
     </div>
   </section></div>;
