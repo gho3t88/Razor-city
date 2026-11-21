@@ -1,3 +1,4 @@
+import { upgradeTerritory, type TerritoryUpgrade } from "./territory";
 import { treatWounded } from "./medical";
 import { buyBusiness, upgradeBusiness, recruitSpecialist, supportSpecialist, payOffThreat } from "./empire";
 import { dismissFight } from "./fight-scene";
@@ -56,6 +57,7 @@ interface RazorStore {
   payOffThreat: (id:string)=>void;
   dismissFight: ()=>void;
   showFight: ()=>void;
+  upgradeTerritory: (id: string, kind: TerritoryUpgrade) => void;
   treatWounded: (count: number) => void;
   buyWeapon: (id: string) => void;
   equipWeapon: (id: string) => void;
@@ -362,6 +364,7 @@ export const useRazor = create<RazorStore>((set, get) => ({
   payOffThreat: id => {const g=get().game;if(g)get().commit(payOffThreat(g,id));},
   showFight: () => {const g=get().game;if(!g?.fightScene||get().billingBusy)return;const s=structuredClone(g);s.fightScene!.dismissed=false;persist(s);set({game:s});},
   dismissFight: () => {const g=get().game;if(!g||get().billingBusy)return;const r=dismissFight(g);if(r.ok){persist(r.state);set({game:r.state});}},
+  upgradeTerritory: (id, kind) => { const g = get().game; if (g) get().commit(upgradeTerritory(g, id, kind)); },
   treatWounded: count => { const g = get().game; if (g) get().commit(treatWounded(g, count)); },
   buyWeapon: id => { const g = get().game; if (g) get().commit(buyWeapon(g, id)); },
   equipWeapon: id => { const g = get().game; if (g) get().commit(equipWeapon(g, id)); },
