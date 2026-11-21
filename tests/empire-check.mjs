@@ -7,10 +7,10 @@ const browser=await chromium.launch();const page=await browser.newPage({viewport
 const read=()=>page.evaluate(async()=>(await import('/src/game/store.ts')).useRazor.getState().game);
 async function empire(){await page.getByRole("button",{name:"Ledger",exact:true}).click();await page.getByRole("button",{name:"Businesses, Crew & Rival Threats",exact:true}).click();await page.getByRole("dialog",{name:"YOUR EMPIRE"}).waitFor();}
 try{
- await page.goto('http://127.0.0.1:5182');await page.getByRole("button",{name:"Take the docks",exact:true}).click();
+ await page.goto('http://127.0.0.1:5182');await page.getByRole("button",{name:"Take the docks",exact:true}).click();await page.getByRole("button",{name:"Skip tutorial",exact:true}).click();
  await page.evaluate(async()=>{const{useRazor}=await import('/src/game/store.ts');const g=structuredClone(useRazor.getState().game);g.cash=100000;g.ap=20;g.seed=42;if(g.encounters){g.encounters.nextBuyerAt=Number.MAX_SAFE_INTEGER;g.encounters.nextTalkAt=Number.MAX_SAFE_INTEGER;}useRazor.setState({game:g});});
  await empire();
- for(const[width,height]of[[393,760],[320,568],[852,393]]){await page.setViewportSize({width,height});const b=await page.getByRole("dialog").boundingBox();assert.ok(b.x>=0&&b.y>=0&&b.x+b.width<=width+1&&b.y+b.height<=height+1);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:`test-results/empire-${width}x${height}.png`});}
+ for(const[width,height]of[[393,760],[320,568],[852,393]]){await page.setViewportSize({width,height});const b=await page.getByRole("dialog",{name:"YOUR EMPIRE"}).boundingBox();assert.ok(b.x>=0&&b.y>=0&&b.x+b.width<=width+1&&b.y+b.height<=height+1);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:`test-results/empire-${width}x${height}.png`});}
  await page.setViewportSize({width:393,height:760});await page.getByRole("button",{name:"Open Auto Garage · $6,000 · 1 move",exact:true}).click();assert.equal((await read()).empire.businesses[0].type,"garage");await page.getByRole("button",{name:"Upgrade · $4,200 · 1 move",exact:true}).click();assert.equal((await read()).empire.businesses[0].level,2);await page.screenshot({path:"test-results/business-front.png"});
  await page.getByRole("button",{name:"Named crew",exact:true}).click();
  for(const name of["Jax","Mina","Saint","Taz"])await page.getByRole("button",{name:new RegExp(`^Recruit ${name} ·`)}).click();
