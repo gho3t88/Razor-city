@@ -309,14 +309,6 @@ export const useRazor = create<RazorStore>((set, get) => ({
   grantAdReward: () => {
     const game = get().game;
     if (!game || game.phase !== "play" || combatOf(game).ambush || cityMapOf(game).order) return false;
-    const key = `razor-city-ad-reward-week-${game.week}`;
-    try {
-      if (localStorage.getItem(key) === "1") {
-        set({ toast: "Ad bonus already claimed this week." });
-        return false;
-      }
-      localStorage.setItem(key, "1");
-    } catch { /* continue without persistence guard */ }
     const rewarded = { ...game, cash: game.cash + 1000 };
     persist(rewarded);
     set({ game: rewarded, saveMeta: metaOf(rewarded), toast: "$1,000 sponsor bonus added." });
