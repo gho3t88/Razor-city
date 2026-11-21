@@ -6,6 +6,7 @@ import { combatOf, levelOf, weaponOf } from "@/game/combat";
 import { RegionMarket } from "./region-market";
 import { InventoryPanel } from "./inventory-panel";
 import { regionMarket } from "@/game/region-economy";
+import { sponsorRewardForLevel } from "@/game/ad-rewards";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
@@ -892,8 +893,9 @@ function MarketSheet({ game, onGear }: { game: GameState; onGear: () => void }) 
       <button type="button" className="combat-opening" onClick={onGear}>Black Market & Training · Level {levelOf(game)}</button>
       <p className="mb-3 text-sm text-mute">Available cash: <strong className="text-gold">{money(game.cash)}</strong>. Buying is free of moves. Prices drift every week. You hold the stash, corners spend it.</p>
       <button type="button" disabled={adBusy} className={`${btnGold} mb-3 w-full`} onClick={claimSponsorBonus}>
-        {adBusy ? "Loading sponsor…" : "Watch ad · get $1,000 bonus"}
+        {adBusy ? "Loading sponsor…" : `Watch ad · get ${money(sponsorRewardForLevel(levelOf(game)))} bonus`}
       </button>
+      <p className="mb-3 text-xs text-mute">Bonuses scale with combat level. Each verified completed ad pays the displayed reward, with no game cooldown.</p>
       <ul className="space-y-3">
         {(Object.keys(PRODUCTS) as ProductId[]).map((id) => {
           const p = PRODUCTS[id];

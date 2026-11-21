@@ -3,7 +3,8 @@ import { treatWounded } from "./medical";
 import { buyBusiness, upgradeBusiness, recruitSpecialist, supportSpecialist, payOffThreat } from "./empire";
 import { dismissFight } from "./fight-scene";
 import { refreshRegionEvents } from "./world-events";
-import { beginAmbushFight, buyWeapon, combatOf, equipWeapon, resolveAmbush, trainCombat, trainingCost } from "./combat";
+import { beginAmbushFight, buyWeapon, combatOf, equipWeapon, levelOf, resolveAmbush, trainCombat, trainingCost } from "./combat";
+import { sponsorRewardForLevel } from "./ad-rewards";
 import { creditWallet, spendCredits } from "@/lib/credits";
 import { refreshRegionMarkets, tradeRegion } from "./region-economy";
 import { tickEncounters, decideDeal, deliverDeal, resolveTalk } from "./encounters";
@@ -325,12 +326,13 @@ export const useRazor = create<RazorStore>((set, get) => ({
   grantAdReward: () => {
     const game = get().game;
     if (!game || game.phase !== "play" || combatOf(game).ambush || cityMapOf(game).order) return false;
-    const rewarded = { ...game, cash: game.cash + 1000 };
+    const bonus = sponsorRewardForLevel(levelOf(game));
+    const rewarded = { ...game, cash: game.cash + bonus, stats: { ...game.stats, earned: game.stats.earned + bonus } };
     if (!persist(rewarded)) {
       set({ toast: "Ad completed, but the reward could not be saved. Please try again." });
       return false;
     }
-    set({ game: rewarded, saveMeta: metaOf(rewarded), toast: "$1,000 sponsor bonus added." });
+    set({ game: rewarded, saveMeta: metaOf(rewarded), toast: `${bonus.toLocaleString("en-US")} sponsor bonus added.` });
     playSound("tick");
     return true;
   },

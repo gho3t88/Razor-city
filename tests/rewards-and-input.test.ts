@@ -1,0 +1,15 @@
+import assert from "node:assert/strict";
+import { sponsorRewardForLevel } from "../src/game/ad-rewards";
+import { normalizeTradeQuantity, validTradeQuantity } from "../src/game/quantity-input";
+for (const [level,reward] of [[1,500],[3,500],[4,1000],[6,1000],[7,2500],[10,2500],[11,5000],[15,5000],[16,10000],[20,10000]]) assert.equal(sponsorRewardForLevel(level),reward);
+assert.equal(sponsorRewardForLevel(Number.NaN),500);
+assert.equal(validTradeQuantity(""),false);
+assert.equal(validTradeQuantity("0"),false);
+assert.equal(validTradeQuantity("123"),true);
+assert.equal(validTradeQuantity("10000"),false);
+assert.equal(validTradeQuantity("-5"),false);
+assert.equal(normalizeTradeQuantity(""),"1");
+assert.equal(normalizeTradeQuantity("0"),"1");
+assert.equal(normalizeTradeQuantity("275"),"275");
+assert.equal(normalizeTradeQuantity("10000"),"9999");
+console.log("PASS sponsor reward tiers and edit-safe quantity normalization.");
