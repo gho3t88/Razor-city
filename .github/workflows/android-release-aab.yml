@@ -31,6 +31,8 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Verify launch theme has no native title bar
+        run: node tests/android-theme-check.mjs
       - name: Build web game
         run: npm run build
 

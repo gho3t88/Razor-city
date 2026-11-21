@@ -1,0 +1,15 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+const manifest = readFileSync("android/app/src/main/AndroidManifest.xml", "utf8");
+const styles = readFileSync("android/app/src/main/res/values/styles.xml", "utf8");
+const pkg = JSON.parse(readFileSync("package.json","utf8"));
+assert.match(manifest, /<activity[^>]+android:theme="@style\\/AppTheme\\.NoActionBar"/s, "Launcher activity must use no-title-bar theme");
+assert.match(styles, /<style name="AppTheme.NoActionBar" parent="Theme\\.AppCompat\\.DayNight\\.NoActionBar"/, "Running theme must be NoActionBar");
+assert.match(styles, /<style name="AppTheme.NoActionBarLaunch" parent="AppTheme.NoActionBar"/, "Legacy launch theme cannot inherit Theme.SplashScreen without its installer");
+assert.ok(!styles.includes('parent="Theme.SplashScreen"'), "Unmanaged splash theme can leave native overlays over the WebView");
+assert.ok(!styles.includes("postSplashScreenTheme"), "No postSplashScreenTheme needed without SplashScreen integration");
+assert.ok(!styles.includes("@drawable/splash"), "Never leave a white launch drawable as the Activity background");
+assert.ok(!pkg.dependencies?.["@capacitor/splash-screen"], "If installing splash plugin, change this regression check to verify explicit splash lifecycle");
+assert.match(styles, /<item name="windowNoTitle">true<\\/item>/);
+assert.match(styles, /<item name="windowActionBar">false<\\/item>/);
+console.log("PASS activity uses full-screen no-title theme, no lingering splash-window overlay.");
