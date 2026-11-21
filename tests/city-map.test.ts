@@ -4,6 +4,16 @@ import { createGame, hit } from "../src/game/logic";
 import { useRazor } from "../src/game/store";
 import type { GameState } from "../src/game/types";
 
+// Store actions now require durable persistence; provide a real in-memory Storage
+// contract instead of relying on Node's missing browser localStorage.
+const saved = new Map<string, string>();
+Object.assign(globalThis, { localStorage: {
+  getItem: (key: string) => saved.get(key) ?? null,
+  setItem: (key: string, value: string) => { saved.set(key, String(value)); },
+  removeItem: (key: string) => { saved.delete(key); },
+  clear: () => saved.clear(),
+} });
+
 const fresh = () => createGame({ boss: "Test", crew: "Test crew", difficulty: "street", seed: 42 });
 const checks: string[] = [];
 
