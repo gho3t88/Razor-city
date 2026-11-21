@@ -125,6 +125,11 @@ assert.ok(resolvedAmbush.ok);
 assert.equal(resolvedAmbush.state.combat?.ambush, null);
 assert.notEqual(resolvedAmbush.state.cityMap?.order?.kind, "ambush");
 assert.notEqual(resolvedAmbush.state.fightScene?.status, "active");
+assert.ok(resolvedAmbush.state.fightScene?.outcome, "Completed ambush must include structured after-action rewards and losses");
+assert.equal(resolvedAmbush.state.fightScene!.outcome!.xp, (resolvedAmbush.state.combat?.xp ?? 0) - (ambushed.combat?.xp ?? 0));
+assert.equal(resolvedAmbush.state.fightScene!.outcome!.credits, (resolvedAmbush.state.combat?.credits ?? 0) - (ambushed.combat?.credits ?? 0));
+assert.equal(resolvedAmbush.state.fightScene!.outcome!.cash, resolvedAmbush.state.cash - ambushed.cash);
+assert.equal(resolvedAmbush.state.fightScene!.outcome!.dead + resolvedAmbush.state.fightScene!.outcome!.wounded, ambushed.crewCounts.muscle - resolvedAmbush.state.crewCounts.muscle);
 assert.notEqual(completeCityOrder(resolvedAmbush.state, 1201)?.state.cityMap?.order?.kind, "ambush");
 checks.push("Timed ambush fights resolve, clear their order, and close the fight report.");
 
