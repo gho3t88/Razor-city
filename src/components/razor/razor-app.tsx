@@ -1,3 +1,4 @@
+import { TREATMENT_COST } from "@/game/medical";
 import { EmpirePanel } from "./empire-panel";
 import { FightScreen } from "./fight-screen";
 import { CombatCenter, AmbushPopup } from "./combat-center";
@@ -648,6 +649,12 @@ function Inspector({
       ) : null}
 
       <div className="mt-4 grid grid-cols-2 gap-2 border-t border-line pt-3">
+        {(game.wounded?.count ?? 0) > 0 && <div className="col-span-2 rounded border border-line p-3">
+          <p className="font-semibold text-paper">Field hospital · {game.wounded!.count} wounded</p>
+          <p className="text-sm text-mute">Injured soldiers cannot fight. Treat them before the next week or they may die.</p>
+          <button type="button" className={btnGhost} disabled={!!noMove || game.cash < TREATMENT_COST} onClick={() => useRazor.getState().treatWounded(1)}>Treat one · {money(TREATMENT_COST)}</button>
+          <button type="button" className={btnGhost} disabled={!!noMove || game.cash < game.wounded!.count * TREATMENT_COST} onClick={() => useRazor.getState().treatWounded(game.wounded!.count)}>Treat all · {money(game.wounded!.count * TREATMENT_COST)}</button>
+        </div>}
         <Action label="Hire muscle · $700" detail={`${freeM} free of ${game.crewCounts.muscle}`} disabled={!!noMove} kind="ghost" onClick={() => commit(recruit(game, "muscle"))} />
         <Action label="Hire dealer · $1,500" detail={`${freeD} free of ${game.crewCounts.dealers}`} disabled={!!noMove} kind="ghost" onClick={() => commit(recruit(game, "dealers"))} />
         <Action label="Lay low" detail="Drop heat. Lose a scrap of respect." disabled={!!noMove || game.heat < 8} kind="ghost" onClick={() => commit(layLow(game))} />
