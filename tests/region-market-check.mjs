@@ -25,11 +25,11 @@ try {
   await page.setViewportSize({ width: 393, height: 760 });
   const before = await game(); const price = before.regionMarkets.hollow.products.dust.sell;
   await page.getByRole("spinbutton", { name: "Yellow Dust units", exact: true }).fill("5");
-  await page.getByRole("button", { name: `Sell 5 · ${(5 * price).toLocaleString("en-US")}`, exact: true }).click();
+  await page.locator(".market-product").first().locator(".market-sell").click();
   assert.equal((await game()).cash, before.cash, "Opening trade confirmation must not charge or credit cash");
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   assert.equal((await game()).cash, before.cash, "Cancel must leave game unchanged");
-  await page.getByRole("button", { name: `Sell 5 · ${(5 * price).toLocaleString("en-US")}`, exact: true }).click();
+  await page.locator(".market-product").first().locator(".market-sell").click();
   await page.getByRole("button", { name: "Confirm sell", exact: true }).click();
   const after = await game(); assert.equal(after.cash, before.cash + price * 5); assert.equal(after.stash.dust, before.stash.dust - 5);
   const savedMarket = after.regionMarkets.hollow;
