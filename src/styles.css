@@ -365,3 +365,11 @@
 .market-trade-controls input{max-width:100%;min-width:0}
 @media(max-width:380px){.region-market-dialog,.contact-dialog{width:100%;max-width:100%}.market-price-grid{gap:5px}.market-product{min-width:0}.market-stock{overflow-wrap:anywhere}}
 @media(prefers-reduced-motion:reduce){.battle-tracers i,.is-fighting .battle-figure{animation:none!important}}
+
+/* Keep trade confirmation visible even when the player is midway through a long market list. */
+.region-market-dialog{position:relative}
+.market-confirm-backdrop{position:absolute;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(2,12,19,.84);border-radius:inherit}
+.market-confirm-panel{width:min(100%,440px);max-height:100%;overflow-y:auto;box-shadow:0 18px 60px #000b;border:1px solid #d2ac65}
+.market-confirm-panel p{line-height:1.6;overflow-wrap:anywhere}
+.market-confirm-panel .market-trade-buttons{margin-top:16px}
+.market-confirm-panel button{min-height:48px}
