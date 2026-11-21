@@ -64,9 +64,9 @@ invalidMarket.regionMarkets!.hollow.products.dust.buy = 20;
 invalidMarket.regionMarkets!.hollow.products.dust.buyers = -1;
 assert.equal(tradeRegion(invalidMarket, "hollow", "dust", 1, "sell").ok, false);
 invalidMarket.regionMarkets!.hollow.products.dust.buyers = 100;
-invalidMarket.regionMarkets!.hollow.products.dust.supply = 1_000_000_000;
+invalidMarket.regionMarkets!.hollow.products.dust.supply = 1_000_000_000_000_000;
 invalidMarket.cash = Number.MAX_SAFE_INTEGER;
-assert.equal(tradeRegion(invalidMarket, "hollow", "dust", 1_000_000_000, "buy").ok, false);
+assert.equal(tradeRegion(invalidMarket, "hollow", "dust", 1_000_000_000_000_000, "buy").ok, false);
 console.log("PASS Corrupted market quotes and overflowing trade totals are rejected.");
 console.log("PASS Direct buys and sales conserve cash and inventory, consume local capacity, shift prices, and reject remote, closed, invalid or unaffordable trades.");
 
