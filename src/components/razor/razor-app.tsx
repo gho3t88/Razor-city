@@ -290,12 +290,14 @@ function PlayScreen() {
   };
 
   const tutorialKey = game ? `razor-tutorial-${game.seed}-${game.boss}-${game.crew}` : "";
+  const tutorialChecked = useRef(false);
   useEffect(() => {
-    if (!game || game.week !== 1 || game.phase !== "play") return;
+    if (!game || game.week !== 1 || game.phase !== "play" || tutorialChecked.current) return;
+    tutorialChecked.current = true;
     try {
       if (window.localStorage.getItem(tutorialKey) !== "done") setTutorialStep(0);
     } catch { setTutorialStep(0); }
-  }, [tutorialKey, !!game]);
+  }, [tutorialKey, game?.phase, game?.week]);
   const finishTutorial = () => {
     try { window.localStorage.setItem(tutorialKey, "done"); } catch { /* Tutorial remains skippable without storage. */ }
     setTutorialStep(null);
