@@ -373,3 +373,33 @@
 .market-confirm-panel p{line-height:1.6;overflow-wrap:anywhere}
 .market-confirm-panel .market-trade-buttons{margin-top:16px}
 .market-confirm-panel button{min-height:48px}
+
+/* Inventory is a first-class empire screen, not a tiny line inside each market card. */
+.inventory-backdrop{position:fixed;inset:0;z-index:90;display:flex;align-items:center;justify-content:center;padding:max(12px,env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) max(12px,env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px));background:rgba(2,10,16,.86)}
+.inventory-dialog{width:min(100%,680px);max-height:100%;display:flex;flex-direction:column;min-height:0;overflow:hidden;border:1px solid #587079;border-radius:18px;background:#10242e;color:#e9e5d8;box-shadow:0 18px 55px #000a}
+.inventory-header{padding:18px 22px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #3e5c65}
+.inventory-header small,.inventory-totals small{display:block;color:#9fb9b9;letter-spacing:2px;font-size:10px}
+.inventory-header h2{font-size:29px;font-weight:750}
+.inventory-header button{border:1px solid #52717c;border-radius:12px;min-height:48px;min-width:48px;font-size:24px}
+.inventory-content{overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:18px 22px}
+.inventory-totals{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.inventory-totals>div{background:#1a3642;border:1px solid #446774;padding:13px;border-radius:12px;min-width:0}
+.inventory-totals strong{display:block;margin-top:7px;color:#e4bd75;font-size:22px;overflow-wrap:anywhere}
+.inventory-explain{font-size:12px;line-height:1.55;color:#b6c8c6;margin:13px 0}
+.inventory-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.inventory-item{border:1px solid #42616c;border-radius:12px;padding:15px;min-width:0;background:#0b1c26}
+.inventory-item-top{display:flex;justify-content:space-between;gap:9px;flex-wrap:wrap;align-items:baseline;margin-bottom:10px}
+.inventory-item h3{font-size:17px;font-weight:700}
+.inventory-item-top strong{color:#e8c37c;font-size:15px}
+.inventory-item p{font-size:12px;line-height:1.6;color:#b7cac7}
+.inventory-item p strong{color:#e8e3d5}
+.inventory-item button{width:100%;margin-top:12px;min-height:44px;border-radius:8px;background:#dbaf60;color:#17222a;font-weight:700}
+.inventory-market-summary{margin:14px 0;padding:13px;border:1px solid #4b6d76;border-radius:12px;background:#17313b}
+.inventory-market-summary>strong{display:block;font-size:11px;letter-spacing:2px;color:#d8b879;margin-bottom:10px}
+.inventory-market-summary>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.inventory-market-summary button{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;border:1px solid #456571;background:#0e2530;border-radius:9px;padding:10px;min-width:0;min-height:74px}
+.inventory-market-summary button span{font-size:12px;color:#dce4df;font-weight:700}
+.inventory-market-summary button b{font-size:15px;color:#e9c17a}
+.inventory-market-summary button small{font-size:10px;color:#aac2bd}
+.market-product{scroll-margin-top:12px}
+@media(max-width:440px){.inventory-grid{grid-template-columns:1fr}.inventory-header{padding:13px 16px}.inventory-content{padding:12px 16px}.inventory-totals strong{font-size:18px}.inventory-item{padding:12px}}
