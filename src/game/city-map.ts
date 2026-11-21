@@ -86,7 +86,10 @@ export function completeCityOrder(game: GameState, now = Date.now()): Result | n
   }
   if (now < order.endsAt) return null;
   if(order.kind==="ambush"){
-    const result=resolveAmbush(game,"fight",now);
+    // The timed fight is complete; clear its order before resolving the ambush.
+    const ready = structuredClone(game);
+    ready.cityMap = { ...map, order: null };
+    const result=resolveAmbush(ready,"fight",now);
     if(result.ok)finishFight(result.state,combatOf(result.state).wins>combatOf(game).wins,result.state.cityMap?.report??"The street fight is over.");
     return result;
   }
