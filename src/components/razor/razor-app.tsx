@@ -231,13 +231,13 @@ function StartScreen() {
 }
 
 const TUTORIAL_STEPS = [
-  { title: "Welcome to Razor City", body: "Build your crew, earn cash, and take territory. This quick tour shows you where to start." },
-  { title: "Watch your resources", body: "The top bar shows cash, police heat, respect, and remaining moves. High heat increases raid risk." },
-  { title: "Check your inventory", body: "Tap Inventory at the bottom to see what you own, current local sale prices, and how much buyers will take." },
-  { title: "Buy and sell", body: "Market lets you buy stock and station dealers. Select a region on the city map to open its regional market and trade at local prices." },
-  { title: "Explore the city", body: "Tap regions on the map to inspect them, travel, and plan territory expansion. Travel and fighting can be risky." },
-  { title: "Grow your crew", body: "Open Game Options for Businesses & Crew or Black Market & Training. Recruit, equip, and protect your people before fights." },
-  { title: "Close your week", body: "When you're ready, tap Close week to collect results and advance. You'll be asked to confirm first. Good luck!" },
+  { title: "Welcome to Razor City", body: "Name's Switch. I know every shortcut in this city, and I'm your unofficial guide. First rule: keep your crew paid and your enemies guessing.", tip: "Nobody starts at the top. Not even you, boss.", face: "😎" },
+  { title: "Know your numbers", body: "See that bar up top? Cash keeps the lights on, respect opens doors, moves limit what you can do, and heat tells you how close the cops are.", tip: "When the heat climbs, I suddenly become hard to find.", face: "👀" },
+  { title: "Check your stash", body: "Tap Inventory to see every product you own. Check the local sale value and buyer limits before you promise anyone a deal.", tip: "Counting your stock is less exciting than losing it.", face: "📦" },
+  { title: "Make your first deal", body: "Market handles supplies and dealers. The regional market lets you trade at local prices. Check the quote, pick your quantity, then confirm.", tip: "Buy smart. Sell smarter. Never confuse inventory with cash.", face: "💰" },
+  { title: "Own the streets", body: "Tap a region on the map to inspect it. You can travel, manage your territory, or make a move on rival turf. Watch for ambushes.", tip: "A shortcut's only good if you make it home.", face: "🗺️" },
+  { title: "Build your crew", body: "Game Options has Businesses & Crew and Black Market & Training. Recruit muscle, get equipment, and patch up wounded soldiers.", tip: "Loyal people are worth more than fancy gear.", face: "🛡️" },
+  { title: "Ready to run the city?", body: "Close week when your moves are done. You'll get a report before the next week begins. Make sure your deals and defenses are ready.", tip: "That's your tour, boss. Now give this city something to talk about.", face: "🔥" },
 ] as const;
 
 function PlayScreen() {
@@ -405,9 +405,14 @@ function PlayScreen() {
       {tutorialStep !== null && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-ink/90 p-4">
           <section role="dialog" aria-modal="true" aria-labelledby="tutorial-title" className="w-full max-w-md rounded-xl border border-gold bg-panel p-5 shadow-2xl">
-            <p className="text-xs font-semibold tracking-widest text-gold">GETTING STARTED · {tutorialStep + 1} / {TUTORIAL_STEPS.length}</p>
+            <div className="mb-4 flex items-center gap-3 rounded-lg border border-line bg-ink/70 p-3">
+              <div className="flex size-16 shrink-0 items-center justify-center rounded-lg border border-gold/60 bg-panel-2 text-4xl" role="img" aria-label="Switch, your streetwise guide">{TUTORIAL_STEPS[tutorialStep].face}</div>
+              <div><p className="font-display text-xl text-gold">SWITCH</p><p className="text-xs text-mute">Your streetwise fixer · Tutorial guide</p></div>
+            </div>
+            <p className="text-xs font-semibold tracking-widest text-gold">STREET SMARTS · {tutorialStep + 1} / {TUTORIAL_STEPS.length}</p>
             <h2 id="tutorial-title" className="mt-2 font-display text-2xl text-paper">{TUTORIAL_STEPS[tutorialStep].title}</h2>
             <p className="mt-3 text-sm leading-relaxed text-paper">{TUTORIAL_STEPS[tutorialStep].body}</p>
+            <p className="mt-4 rounded-lg border-l-2 border-gold bg-ink/60 p-3 text-sm italic text-gold">“{TUTORIAL_STEPS[tutorialStep].tip}”</p>
             <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
               <button type="button" className={btnGhost} onClick={finishTutorial}>Skip tutorial</button>
               <div className="flex gap-2">
