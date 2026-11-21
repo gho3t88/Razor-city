@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createGame } from "../src/game/logic";
+import { createGame, recruit, soldierCapacity } from "../src/game/logic";
 import { territoryCost, upgradeTerritory } from "../src/game/territory";
 
 const s = createGame({ boss: "Test", crew: "Test Crew", difficulty: "street", seed: 31 });
@@ -19,3 +19,21 @@ assert.equal(upgradeTerritory(s, s.districts.find(d => d.owner !== "player")!.id
 const broke = structuredClone(s); broke.cash = 0;
 assert.equal(upgradeTerritory(broke, owned.id, "cameras").ok, false);
 console.log("PASS Territory upgrades, defenses, cash, action points, and save immutability.");
+
+// Barracks expand recruitment capacity only while the upgraded block is owned.
+const full = structuredClone(s);
+full.crewCounts.muscle = 40;
+full.cash = 10000;
+assert.equal(soldierCapacity(full), 40);
+assert.equal(recruit(full, "muscle").ok, false);
+const expanded = upgradeTerritory(full, owned.id, "barracks");
+assert.ok(expanded.ok);
+assert.equal(soldierCapacity(expanded.state), 44);
+const hired = recruit(expanded.state, "muscle");
+assert.ok(hired.ok);
+assert.equal(hired.state.crewCounts.muscle, 41);
+const seized = structuredClone(expanded.state);
+seized.districts.find(d => d.id === owned.id)!.owner = "neutral";
+assert.equal(soldierCapacity(seized), 40);
+assert.equal(recruit(seized, "muscle").ok, false);
+console.log("PASS Barracks increase recruitment capacity and losing territory removes that capacity.");
