@@ -193,8 +193,11 @@ export const useRazor = create<RazorStore>((set, get) => ({
     unlockAudio();
     const game = createGame(opts);
     const legacy = { ...get().legacy, runs: get().legacy.runs + 1 };
+    if (!persist(game)) {
+      set({ toast: "Unable to save the new game. Free storage and try again." });
+      return;
+    }
     writeLegacy(legacy);
-    persist(game);
     set({
       screen: "game",
       game,
@@ -242,8 +245,11 @@ export const useRazor = create<RazorStore>((set, get) => ({
     if (!game) return;
     const result = setSelected(game, id);
     if (!result.ok) return;
-    persist(result.state);
-    set({ game: result.state });
+    if (!persist(result.state)) {
+      set({ toast: "Could not save your selection. Please try again." });
+      return;
+    }
+    set({ game: result.state, saveMeta: metaOf(result.state) });
   },
 
   commit: (result) => {
@@ -271,9 +277,12 @@ export const useRazor = create<RazorStore>((set, get) => ({
         bestWorth: Math.max(legacy.bestWorth, worth),
         bestWeek: game.phase === "won" ? Math.min(legacy.bestWeek ?? game.week, game.week) : legacy.bestWeek,
       };
-      writeLegacy(legacy);
     }
-    persist(game);
+    if (!persist(game)) {
+      set({ toast: "Could not save this action. No changes were applied. Check available storage." });
+      return;
+    }
+    if (justEnded) writeLegacy(legacy);
     set({
       game,
       legacy,
