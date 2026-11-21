@@ -67,7 +67,14 @@ export function RegionMarket({ game, close }: { game: GameState; close: () => vo
           <button type="button" className="market-sell" onClick={() => {
             const pending = confirmation;
             setConfirmation(null);
-            // The game action revalidates cash, demand, stock, location and current prices.
+            // Never execute at a price different from the one the player confirmed.
+            const latest = useRazor.getState().game;
+            const quote = latest ? regionMarket(latest, pending.region).products[pending.product] : null;
+            if (!latest || !quote || (pending.side === "buy" ? quote.buy : quote.sell) !== pending.unitPrice) {
+              useRazor.setState({ toast: "The quote changed. Review the new price before trading." });
+              return;
+            }
+            // The game action also revalidates cash, demand, stock and location.
             trade(pending.region, pending.product, pending.quantity, pending.side);
           }}>Confirm {confirmation.side}</button>
         </div>
