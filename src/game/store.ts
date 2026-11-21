@@ -352,8 +352,12 @@ export const useRazor = create<RazorStore>((set, get) => ({
     const result = completeCityOrder(game);
     if (!result) return;
     // Unlock only inside this synchronous completion, then use normal save/legacy handling.
-    set({ game: { ...game, cityMap: { ...cityMapOf(game), order: null } } });
+    const unlocked = { ...game, cityMap: { ...cityMapOf(game), order: null } };
+    set({ game: unlocked });
     get().commit(result);
+    // If storage rejected the completed order, retain the original pending order
+    // so reopening the app can retry instead of silently losing the result.
+    if (get().game === unlocked) set({ game });
   },
 
   refreshWallet: async () => { try { const wallet = await creditWallet(); set({ premiumBalance: wallet.balance }); } catch { /* earned credits remain usable offline */ } },
