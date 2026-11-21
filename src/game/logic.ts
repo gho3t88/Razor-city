@@ -239,6 +239,8 @@ function releaseCrew(state: GameState, d: District, muscleKeep: number, dealerKe
   state.crewCounts.dealers = Math.max(0, state.crewCounts.dealers - Math.max(0, dealerLoss));
   d.stationMuscle = 0;
   d.stationDealers = 0;
+  d.cameras = 0;
+  d.barracks = 0;
 }
 
 function giveBlockToPlayer(state: GameState, d: District, loyalty: number, muscle: number, dealers: number) {
@@ -248,6 +250,8 @@ function giveBlockToPlayer(state: GameState, d: District, loyalty: number, muscl
   d.focus = "auto";
   d.stationMuscle = 0;
   d.stationDealers = 0;
+  d.cameras = 0;
+  d.barracks = 0;
   clampStations(state);
   const fm = freeMuscle(state);
   const fd = freeDealers(state);
@@ -713,6 +717,8 @@ function captureByGang(state: GameState, d: District, gang: Gang, rng: () => num
     other.relation = clamp(other.relation - 8, -100, 80);
   }
   d.owner = gang.id;
+  d.cameras = 0;
+  d.barracks = 0;
   d.corners = 1;
   d.loyalty = 0;
   d.stationMuscle = 0;
