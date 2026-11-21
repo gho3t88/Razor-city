@@ -59,7 +59,9 @@ export function RegionMarket({ game, close }: { game: GameState; close: () => vo
           })}<small>Live quotes may move by the time you arrive.</small></div>}
         </article>;
       })}</div>
-      {confirmation && <div role="group" aria-label="Confirm regional trade" className="market-news">
+      {toast && <p className="market-feedback" role="status">{toast}</p>}
+    </div>
+      {confirmation && <div className="market-confirm-backdrop"><div role="alertdialog" aria-modal="true" aria-label="Confirm regional trade" className="market-news market-confirm-panel">
         <strong>CONFIRM {confirmation.side.toUpperCase()}</strong>
         <p>{confirmation.quantity} {PRODUCTS[confirmation.product].name} in {game.districts.find(d => d.id === confirmation.region)?.name} at {money(confirmation.unitPrice)} each. Total: <strong>{money(confirmation.quantity * confirmation.unitPrice)}</strong>.</p>
         <div className="market-trade-buttons">
@@ -78,8 +80,6 @@ export function RegionMarket({ game, close }: { game: GameState; close: () => vo
             trade(pending.region, pending.product, pending.quantity, pending.side);
           }}>Confirm {confirmation.side}</button>
         </div>
-      </div>}
-      {toast && <p className="market-feedback" role="status">{toast}</p>}
-    </div>
+      </div></div>}
   </section></div>;
 }
