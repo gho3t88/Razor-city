@@ -239,7 +239,10 @@ export const useRazor = create<RazorStore>((set, get) => ({
 
   abandon: () => {
     if (get().billingBusy) return;
-    persist(null);
+    if (!persist(null)) {
+      set({ toast: "Could not delete the save. Your existing progress is still protected." });
+      return;
+    }
     set({ screen: "start", game: null, hasSave: false, saveMeta: null, modal: "none", toast: null });
   },
 
