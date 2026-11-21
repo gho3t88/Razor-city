@@ -310,7 +310,10 @@ export const useRazor = create<RazorStore>((set, get) => ({
     const game = get().game;
     if (!game || game.phase !== "play" || combatOf(game).ambush || cityMapOf(game).order) return false;
     const rewarded = { ...game, cash: game.cash + 1000 };
-    persist(rewarded);
+    if (!persist(rewarded)) {
+      set({ toast: "Ad completed, but the reward could not be saved. Please try again." });
+      return false;
+    }
     set({ game: rewarded, saveMeta: metaOf(rewarded), toast: "$1,000 sponsor bonus added." });
     playSound("tick");
     return true;
