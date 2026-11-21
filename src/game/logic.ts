@@ -433,12 +433,17 @@ export function buy(state: GameState, product: ProductId, qty: number): Result {
   return { ok: true, state: next, fx: "cash" };
 }
 
+/** Barracks expand the active soldier roster; losing the block removes capacity. */
+export function soldierCapacity(state: GameState): number {
+  return 40 + state.districts.reduce((n, d) => n + (d.owner === "player" ? (d.barracks ?? 0) * 4 : 0), 0);
+}
+
 export function recruit(state: GameState, kind: "muscle" | "dealers"): Result {
   const next = clone(state);
   const ap = spendAp(next);
   if (ap) return fail(ap);
   if (kind === "muscle") {
-    if (next.crewCounts.muscle >= 40) return fail("No more muscle will take your money.");
+    if (next.crewCounts.muscle >= soldierCapacity(next)) return fail("Your barracks are full. Upgrade controlled territory to recruit more soldiers.");
     const cost = 700;
     if (next.cash < cost) return fail(`Hiring muscle costs ${money(cost)}.`);
     next.cash -= cost;
