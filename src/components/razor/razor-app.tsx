@@ -160,7 +160,7 @@ function StartScreen() {
             <img src="/art/reyes.jpg" alt="" className="size-14 rounded-md object-cover" />
             <div className="min-w-0 flex-1">
               <p className="font-display text-xl tracking-wide text-paper">OPEN THE BOOKS</p>
-              <p className="text-sm text-mute">Name the boss. Name the crew.</p>
+              <p className="text-sm text-mute">Default names are prefilled. Edit them to customize your save.</p>
             </div>
             <button
               type="button"
@@ -761,7 +761,7 @@ function MarketSheet({ game, onGear }: { game: GameState; onGear: () => void }) 
   return (
     <Sheet title="WHOLESALE" onClose={() => setModal("none")}>
       <button type="button" className="combat-opening" onClick={onGear}>Black Market & Training · Level {levelOf(game)}</button>
-      <p className="mb-3 text-sm text-mute">Buying is free of moves. Prices drift every week. You hold the stash, corners spend it.</p>
+      <p className="mb-3 text-sm text-mute">Available cash: <strong className="text-gold">{money(game.cash)}</strong>. Buying is free of moves. Prices drift every week. You hold the stash, corners spend it.</p>
       <button type="button" disabled={adBusy} className={`${btnGold} mb-3 w-full`} onClick={claimSponsorBonus}>
         {adBusy ? "Loading sponsor…" : "Watch ad · get $1,000 bonus"}
       </button>
@@ -769,7 +769,8 @@ function MarketSheet({ game, onGear }: { game: GameState; onGear: () => void }) 
         {(Object.keys(PRODUCTS) as ProductId[]).map((id) => {
           const p = PRODUCTS[id];
           const price = game.prices[id].wholesale;
-          const afford = Math.floor(game.cash / price);
+          const afford = Math.max(0, Math.floor(game.cash / price));
+          const fillQty = Math.min(40, afford);
           return (
             <li key={id} className="rounded-md border border-line bg-ink p-3">
               <div className="flex items-baseline justify-between gap-2">
@@ -777,8 +778,9 @@ function MarketSheet({ game, onGear }: { game: GameState; onGear: () => void }) 
                 <p className="text-gold">{money(price)}</p>
               </div>
               <p className="text-sm text-mute">{p.blurb}</p>
+              <p className="text-xs text-mute">5 units: {money(price * 5)} · 10 units: {money(price * 10)}</p>
               <p className="mt-1 text-sm text-paper">
-                Street {money(game.prices[id].street)} · you hold {game.stash[id]}
+                Street {money(game.prices[id].street)} · you hold {game.stash[id]} · affordable {afford}
               </p>
               <div className="mt-2 grid grid-cols-3 gap-2">
                 <button type="button" className={btnGhost} disabled={afford < 5} onClick={() => commit(buy(game, id, 5))}>
@@ -787,8 +789,8 @@ function MarketSheet({ game, onGear }: { game: GameState; onGear: () => void }) 
                 <button type="button" className={btnGhost} disabled={afford < 10} onClick={() => commit(buy(game, id, 10))}>
                   Buy 10
                 </button>
-                <button type="button" className={btnGold} disabled={afford < 1} onClick={() => commit(buy(game, id, Math.min(40, afford)))}>
-                  Fill
+                <button type="button" className={btnGold} disabled={afford < 1} onClick={() => { if (window.confirm(`Buy ${fillQty} ${p.name} for ${money(fillQty * price)}?`)) commit(buy(game, id, fillQty)); }}>
+                  Fill {fillQty} · {money(fillQty * price)}
                 </button>
               </div>
             </li>
