@@ -101,4 +101,30 @@ useRazor.getState().tickCity();
 assert.equal(useRazor.getState().game, completedAttack);
 checks.push("Reopening completes overdue orders exactly once through the store/save pipeline.");
 
+// Regression: timed ambush fights must finish and clear the pending order exactly once.
+const ambushed = fresh();
+ambushed.crewCounts.muscle = 8;
+ambushed.combat = {
+  xp: 0, credits: 0, equipped: "fists", owned: ["fists"],
+  wins: 0, losses: 0, escapes: 0, surrenders: 0,
+  ambush: { origin: "hollow", destination: "iron", location: "iron", attackers: 2, triggerAt: 1100 },
+};
+ambushed.cityMap = {
+  locationId: "iron", report: "Fighting off the ambush",
+  order: { kind: "ambush", route: ["iron", "iron"], startedAt: 1000, arrivesAt: 1000, endsAt: 1200, soldiers: 8 },
+};
+ambushed.fightScene = {
+  id: "ambush-test", kind: "ambush", region: "iron", enemy: "Street attackers",
+  allies: 10, enemyPower: 2, playerPower: 10, weapon: "Bare Knuckles", level: 1,
+  startedAt: 1000, endsAt: 1200, status: "active", summary: "Fighting", dismissed: false,
+};
+assert.equal(completeCityOrder(ambushed, 1199), null);
+const resolvedAmbush = completeCityOrder(ambushed, 1200)!;
+assert.ok(resolvedAmbush.ok);
+assert.equal(resolvedAmbush.state.combat?.ambush, null);
+assert.notEqual(resolvedAmbush.state.cityMap?.order?.kind, "ambush");
+assert.notEqual(resolvedAmbush.state.fightScene?.status, "active");
+assert.notEqual(completeCityOrder(resolvedAmbush.state, 1201)?.state.cityMap?.order?.kind, "ambush");
+checks.push("Timed ambush fights resolve, clear their order, and close the fight report.");
+
 console.log(checks.map(s => `PASS ${s}`).join("\n"));
