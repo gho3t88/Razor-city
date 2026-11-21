@@ -152,10 +152,11 @@ function StartScreen() {
           className="w-full max-w-md rounded-xl border border-line bg-panel/95 p-4"
           onSubmit={(e) => {
             e.preventDefault();
+            if (hasSave && !window.confirm("Start a new game? This will overwrite your existing saved progress and cannot be undone.")) return;
             startNew({ boss, crew, difficulty });
           }}
         >
-          <div className="mb-4 flex items-center gap-3">
+          <div className="mb-4 flex flex-wrap items-center gap-3">
             <img src="/art/reyes.jpg" alt="" className="size-14 rounded-md object-cover" />
             <div className="min-w-0 flex-1">
               <p className="font-display text-xl tracking-wide text-paper">OPEN THE BOOKS</p>
@@ -342,7 +343,7 @@ function PlayScreen() {
       <nav className="game-bottom" aria-label="Empire actions">
         <button type="button" disabled={!playing || busy} onClick={() => setModal("market")}><Store size={18} />Market</button>
         <button type="button" onClick={() => setModal("ledger")}><BookOpen size={18} />Ledger</button>
-        <button type="button" className="game-close-week" disabled={!playing || busy} onClick={closeWeek}>Close week</button>
+        <button type="button" className="game-close-week" disabled={!playing || busy} onClick={() => { if (window.confirm("Close this week and calculate results? You cannot undo this action.")) closeWeek(); }}>Close week</button>
       </nav>
       {inspectorOpen && selected && <Sheet title="REGION MANAGEMENT" onClose={() => setInspectorOpen(false)}><Inspector game={game} district={selected} preview={preview} playing={playing && !busy} onEmpire={()=>{setInspectorOpen(false);setEmpireOpen(true);}} /></Sheet>}
       {settingsOpen && <Sheet title="GAME OPTIONS" onClose={() => setSettingsOpen(false)}>
