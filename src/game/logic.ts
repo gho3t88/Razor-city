@@ -1,3 +1,4 @@
+import { applyCasualties, expireWounded } from "./medical";
 import { applyEmpireWeek, empireOf, hasThreat, medicalLosses, queueRetaliation, resolveRetaliations, specialistBonus } from "./empire";
 import { eventEffects, refreshRegionEvents, regionEvent } from "./world-events";
 import { finishFight } from "./fight-scene";
@@ -617,7 +618,7 @@ export function hit(state: GameState, id: string, commit: number): Result {
   const def = d.defense;
   if (atk > def) {
     const losses = Math.min(send, medicalLosses(next, Math.max(1, Math.round(send * (0.1 + rng() * 0.16)))));
-    next.crewCounts.muscle = Math.max(0, next.crewCounts.muscle - losses);
+    const casualties = applyCasualties(next, losses);
     clampStations(next);
     const wasHome = d.id === gang?.home;
     if (gang) {
@@ -638,19 +639,19 @@ export function hit(state: GameState, id: string, commit: number): Result {
     next.stats.blocksTaken += 1;
     const homeLine = wasHome ? " You took their house." : "";
     grantFightRewards(next, true, Math.max(1, Math.round(def / 6)));
-    pushLog(next, `${d.name} falls. Lost ${losses} muscle.${homeLine}`, "blood");
+    pushLog(next, `${d.name} falls. ${casualties.dead} dead, ${casualties.wounded} wounded.${homeLine}`, "blood");
     if(gang) queueRetaliation(next,gang.id,d.id);
-    finishFight(next,true,`Victory in ${d.name}. ${losses} soldier losses. The block belongs to you.`);
+    finishFight(next,true,`Victory in ${d.name}. ${casualties.dead} dead, ${casualties.wounded} wounded. The block belongs to you.`);
     return finish(next, "hit");
   }
   const losses = Math.min(send, medicalLosses(next, Math.max(1, Math.round(send * (0.34 + rng() * 0.28)))));
-  next.crewCounts.muscle = Math.max(0, next.crewCounts.muscle - losses);
+  const casualties = applyCasualties(next, losses);
   clampStations(next);
   if (gang) { gang.relation = clamp(gang.relation - 14, -100, 80); gang.truceWeeks = 0; }
   next.heat = clamp(next.heat + 10, 0, 100);
   next.respect = clamp(next.respect - 2, 0, 100);
   grantFightRewards(next, false, Math.max(1, Math.round(def / 6)));
-  pushLog(next, `${gang?.name ?? "Local defenders"} hold ${d.name}. You lose ${losses} muscle.`, "blood");
+  pushLog(next, `${gang?.name ?? "Local defenders"} hold ${d.name}. ${casualties.dead} dead, ${casualties.wounded} wounded.`, "blood");
   finishFight(next,false,`Defeat in ${d.name}. ${losses} soldier losses. Your crew pulled back.`);
   return finish(next, "hit");
 }
@@ -1193,6 +1194,7 @@ export function continueReport(state: GameState): Result {
   const next = clone(state);
   next.phase = "play";
   next.report = null;
+  expireWounded(next);
   return finish(next, "tick");
 }
 
