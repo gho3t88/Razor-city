@@ -7,7 +7,7 @@ import { cityMapOf } from "@/game/city-map";
 import { useRazor } from "@/game/store";
 import type { GameState, ProductId } from "@/game/types";
 
-export function RegionMarket({ game, close }: { game: GameState; close: () => void }) {
+export function RegionMarket({ game, close, initialProduct = null }: { game: GameState; close: () => void; initialProduct?: ProductId | null }) {
   const selected = game.districts.find(d => d.id === game.selectedId)!;
   const local = regionMarket(game, selected.id);
   const trade = useRazor(s => s.tradeRegion);
@@ -18,11 +18,14 @@ export function RegionMarket({ game, close }: { game: GameState; close: () => vo
   const [compare, setCompare] = useState(false);
   const [confirmation, setConfirmation] = useState<{ region: string; product: ProductId; quantity: number; side: "buy" | "sell"; unitPrice: number } | null>(null);
   const dialog = useRef<HTMLElement>(null);
+  const productRefs = useRef<Partial<Record<ProductId, HTMLElement | null>>>({});
   const present = cityMapOf(game).locationId === selected.id;
   const busy = !!cityMapOf(game).order || game.phase !== "play";
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
-    dialog.current?.focus(); return () => previous?.focus();
+    dialog.current?.focus();
+    if (initialProduct) productRefs.current[initialProduct]?.scrollIntoView({ block: "start", behavior: "instant" });
+    return () => previous?.focus();
   }, []);
   return <div className="region-market-backdrop"><section ref={dialog} role="dialog" aria-modal="true" aria-label="Regional market" className="region-market-dialog" tabIndex={-1} onKeyDown={e => {
     if (e.key === "Escape") close();
@@ -41,12 +44,13 @@ export function RegionMarket({ game, close }: { game: GameState; close: () => vo
       {!present && <button type="button" className="market-travel" disabled={busy} onClick={() => { travel([selected.id]); close(); }}>Travel to {selected.name}</button>}
       <p className="market-help">Quotes change each week and on arrival. Sales add police heat and reduce prices and buyer demand; buying raises prices. No move cost. Local stock and buyers replenish next week.</p>
       <p className="market-help" role="status">Available cash: <strong>{money(game.cash)}</strong> · Review quantity and total cost before buying.</p>
+      <div className="inventory-market-summary"><strong>YOUR INVENTORY</strong><div>{PRODUCT_IDS.map(product => <button key={product} type="button" onClick={() => productRefs.current[product]?.scrollIntoView({ block: "start", behavior: "smooth" })}><span>{PRODUCTS[product].name}</span><b>{game.stash[product] ?? 0} units</b><small>{money((game.stash[product] ?? 0) * local.products[product].sell)} est.</small></button>)}</div></div>
       <div className="market-products">{PRODUCT_IDS.map(product => {
         const q = local.products[product]; const quantity = quantities[product];
         const trend = Math.round((q.sell / q.previousSell - 1) * 100);
         const canSell = Math.min(game.stash[product], q.buyers);
         const canBuy = Math.max(0, Math.min(q.supply, Math.floor(game.cash / q.buy)));
-        return <article key={product} className="market-product">
+        return <article key={product} ref={node => { productRefs.current[product] = node; }} className="market-product">
           <div className="market-product-heading"><h3>{PRODUCTS[product].name}</h3><span className={trend > 0 ? "market-up" : trend < 0 ? "market-down" : ""}>{trend > 0 ? "▲ +" : trend < 0 ? "▼ " : "— "}{trend}%</span></div>
           <div className="market-price-grid"><div><span>SELL / UNIT</span><strong>{money(q.sell)}</strong></div><div><span>BUY / UNIT</span><strong>{money(q.buy)}</strong></div><div><span>DEMAND</span><strong>{q.demand}%</strong></div></div>
           <div className="market-stock"><span>Buyers want {q.buyers}</span><span>Local stock {q.supply}</span><span>You hold {game.stash[product]}</span><span>Affordable: {canBuy} units ({money(canBuy * q.buy)})</span></div>
