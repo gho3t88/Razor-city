@@ -90,7 +90,19 @@ export function completeCityOrder(game: GameState, now = Date.now()): Result | n
     const ready = structuredClone(game);
     ready.cityMap = { ...map, order: null };
     const result=resolveAmbush(ready,"fight",now);
-    if(result.ok)finishFight(result.state,combatOf(result.state).wins>combatOf(game).wins,result.state.cityMap?.report??"The street fight is over.");
+    if (result.ok) {
+      const beforeCombat = combatOf(game), afterCombat = combatOf(result.state);
+      const lostMuscle = Math.max(0, game.crewCounts.muscle - result.state.crewCounts.muscle);
+      const wounded = Math.min(lostMuscle, Math.max(0, (result.state.wounded?.count ?? 0) - (game.wounded?.count ?? 0)));
+      finishFight(result.state, afterCombat.wins > beforeCombat.wins,
+        result.state.cityMap?.report ?? "The street fight is over.", {
+          xp: Math.max(0, afterCombat.xp - beforeCombat.xp),
+          credits: Math.max(0, afterCombat.credits - beforeCombat.credits),
+          cash: result.state.cash - game.cash,
+          dead: lostMuscle - wounded,
+          wounded,
+        });
+    }
     return result;
   }
   const target = order.route[order.route.length - 1];
