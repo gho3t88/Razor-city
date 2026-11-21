@@ -8,6 +8,8 @@ on:
     paths:
       - '.github/workflows/android-release-aab.yml'
       - 'android/app/build.gradle'
+      - 'src/**'
+      - 'tests/**'
 
 jobs:
   build-release:
