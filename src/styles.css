@@ -428,3 +428,14 @@
   padding-left: max(12px, var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
   padding-right: max(12px, var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
 }
+
+/* The first-run screen must begin inside the visible WebView, never above it.
+   Older versions bottom-aligned the whole form; short phone screens clipped RAZOR. */
+.start-screen { overflow-y: auto; }
+.start-screen-layout {
+  padding-top: max(24px, var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));
+  padding-bottom: max(28px, var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+}
+@media (min-width: 1024px) {
+  .start-screen-layout { align-items: flex-end; }
+}

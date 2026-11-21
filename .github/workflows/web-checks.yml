@@ -17,6 +17,7 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npx playwright install --with-deps chromium
+      - run: node tests/start-screen-check.mjs
       - run: node tests/tutorial-check.mjs
       - run: node tests/layout-check.mjs
       - run: node tests/contacts-check.mjs

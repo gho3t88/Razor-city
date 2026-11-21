@@ -120,7 +120,7 @@ function StartScreen() {
   const [art, setArt] = useState(true);
 
   return (
-    <main className="relative min-h-dvh bg-ink">
+    <main className="start-screen relative min-h-dvh overflow-x-hidden bg-ink">
       {art ? (
         <img
           src="/art/hero.jpg"
@@ -130,10 +130,10 @@ function StartScreen() {
         />
       ) : null}
       <div className="absolute inset-0 bg-ink/80" />
-      <div className="relative mx-auto flex min-h-dvh w-full max-w-5xl flex-col justify-end gap-6 px-4 py-6 sm:px-6 lg:flex-row lg:items-end lg:justify-between lg:py-10">
+      <div className="start-screen-layout relative mx-auto flex min-h-dvh w-full max-w-5xl flex-col justify-start gap-6 px-4 py-6 sm:px-6 lg:flex-row lg:items-end lg:justify-between lg:py-10">
         <div className="max-w-xl">
           <p className="text-xs font-medium tracking-widest text-gold">DRUG EMPIRE SIMULATION</p>
-          <h1 className="mt-2 font-display text-6xl leading-none text-paper sm:text-8xl">
+          <h1 className="mt-2 font-display text-5xl leading-none text-paper sm:text-7xl lg:text-8xl">
             RAZOR
             <span className="block">CITY</span>
           </h1>
