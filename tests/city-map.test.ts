@@ -7,9 +7,10 @@ import type { GameState } from "../src/game/types";
 // Store actions now require durable persistence; provide a real in-memory Storage
 // contract instead of relying on Node's missing browser localStorage.
 const saved = new Map<string, string>();
+let failWrites = false;
 Object.assign(globalThis, { localStorage: {
   getItem: (key: string) => saved.get(key) ?? null,
-  setItem: (key: string, value: string) => { saved.set(key, String(value)); },
+  setItem: (key: string, value: string) => { if (failWrites) throw new Error("Storage full"); saved.set(key, String(value)); },
   removeItem: (key: string) => { saved.delete(key); },
   clear: () => saved.clear(),
 } });
@@ -126,5 +127,17 @@ assert.notEqual(resolvedAmbush.state.cityMap?.order?.kind, "ambush");
 assert.notEqual(resolvedAmbush.state.fightScene?.status, "active");
 assert.notEqual(completeCityOrder(resolvedAmbush.state, 1201)?.state.cityMap?.order?.kind, "ambush");
 checks.push("Timed ambush fights resolve, clear their order, and close the fight report.");
+
+// Failed disk writes must not silently advance a completed order.
+const diskOrder = issueCityOrder(fresh(), ["blackwater"], 0, 1);
+assert.ok(diskOrder.ok);
+useRazor.setState({ game: diskOrder.state });
+failWrites = true;
+useRazor.getState().tickCity();
+assert.ok(useRazor.getState().game?.cityMap?.order, "Failed save must preserve the order for retry");
+failWrites = false;
+useRazor.getState().tickCity();
+assert.equal(useRazor.getState().game?.cityMap?.order, null);
+checks.push("Storage failure preserves unfinished orders until a successful retry.");
 
 console.log(checks.map(s => `PASS ${s}`).join("\n"));
