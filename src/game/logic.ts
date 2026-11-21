@@ -102,7 +102,7 @@ export function adjacentToPlayer(state: GameState, id: string): boolean {
 }
 
 export function playerDefense(d: District): number {
-  return 6 + d.stationMuscle * 7 + d.corners * 4 + Math.round(d.loyalty / 12);
+  return 6 + d.stationMuscle * 7 + d.corners * 4 + Math.round(d.loyalty / 12) + (d.cameras ?? 0) * 8 + (d.barracks ?? 0) * 6;
 }
 
 export function refreshDefense(state: GameState) {
@@ -632,6 +632,8 @@ export function hit(state: GameState, id: string, commit: number): Result {
     d.focus = "auto";
     d.stationMuscle = 0;
     d.stationDealers = 0;
+    d.cameras = 0;
+    d.barracks = 0;
     clampStations(next);
     d.stationMuscle = Math.min(Math.max(0, send - losses), freeMuscle(next));
     next.heat = clamp(next.heat + 16, 0, 100);
