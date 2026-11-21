@@ -34,6 +34,7 @@ export interface District {
   stationMuscle: number;
   cameras?: number;
   barracks?: number;
+  clinic?: number;
   stationDealers: number;
   focus: ProductId | "auto";
 }

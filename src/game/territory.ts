@@ -5,6 +5,7 @@ import { refreshDefense } from "./logic";
 export const TERRITORY_UPGRADES = {
   cameras: { label: "Surveillance cameras", cost: 1500, defense: 8, max: 3 },
   barracks: { label: "Crew barracks", cost: 2500, defense: 6, max: 3 },
+  clinic: { label: "Medical clinic", cost: 3500, defense: 0, max: 3 },
 } as const;
 export type TerritoryUpgrade = keyof typeof TERRITORY_UPGRADES;
 export function territoryCost(kind: TerritoryUpgrade, level: number) {

@@ -241,6 +241,7 @@ function releaseCrew(state: GameState, d: District, muscleKeep: number, dealerKe
   d.stationDealers = 0;
   d.cameras = 0;
   d.barracks = 0;
+  d.clinic = 0;
 }
 
 function giveBlockToPlayer(state: GameState, d: District, loyalty: number, muscle: number, dealers: number) {
@@ -252,6 +253,7 @@ function giveBlockToPlayer(state: GameState, d: District, loyalty: number, muscl
   d.stationDealers = 0;
   d.cameras = 0;
   d.barracks = 0;
+  d.clinic = 0;
   clampStations(state);
   const fm = freeMuscle(state);
   const fd = freeDealers(state);
@@ -644,6 +646,7 @@ export function hit(state: GameState, id: string, commit: number): Result {
     d.stationDealers = 0;
     d.cameras = 0;
     d.barracks = 0;
+  d.clinic = 0;
     clampStations(next);
     d.stationMuscle = Math.min(Math.max(0, send - losses), freeMuscle(next));
     next.heat = clamp(next.heat + 16, 0, 100);
@@ -725,6 +728,7 @@ function captureByGang(state: GameState, d: District, gang: Gang, rng: () => num
   d.owner = gang.id;
   d.cameras = 0;
   d.barracks = 0;
+  d.clinic = 0;
   d.corners = 1;
   d.loyalty = 0;
   d.stationMuscle = 0;
@@ -979,9 +983,13 @@ export function endWeek(state: GameState): Result {
   const heatBefore = next.heat;
   const linesStart = next.logSeq;
   applyEmpireWeek(next);
-  const acted = resolveRetaliations(next,rng,(gang,region)=>captureByGang(next,districtById(next,region)!,next.gangs[gang],rng,true),(won,strength,region,gang)=>{
+  const acted = resolveRetaliations(next,rng,(gang,region)=>captureByGang(next,districtById(next,region)!,next.gangs[gang],rng,true),(won,strength,region,gang,details)=>{
+    const priorXp = combatOf(next).xp, priorCredits = combatOf(next).credits, priorCash = next.cash;
     grantFightRewards(next,won,Math.max(1,Math.round(strength/6)));
-    next.fightScene={id:`counter-${next.week}-${gang}`,kind:"retaliation",region,enemy:next.gangs[gang].name,allies:districtById(next,region)!.stationMuscle,enemyPower:strength,playerPower:districtById(next,region)!.defense,weapon:weaponOf(next).name,level:levelOf(next),startedAt:0,endsAt:0,status:won?"won":"lost",summary:won?"Your crew held the block against a counterattack.":"The rival crew recaptured your block.",dismissed:true};
+    const place = districtById(next,region)!.name;
+    next.fightScene={id:`counter-${next.week}-${gang}`,kind:"retaliation",region,enemy:next.gangs[gang].name,allies:details.defenders,enemyPower:strength,playerPower:details.defense,weapon:weaponOf(next).name,level:levelOf(next),startedAt:0,endsAt:0,status:won?"won":"lost",
+      summary:won?`${place} held against ${next.gangs[gang].name}. ${details.defenders} stationed defenders protected the block.`:`${next.gangs[gang].name} retook ${place}; ${details.dead} soldiers lost defending it.`,
+      dismissed:true,outcome:{xp:combatOf(next).xp-priorXp,credits:combatOf(next).credits-priorCredits,cash:next.cash-priorCash,dead:details.dead,wounded:0,territoryCaptured:false}};
   });
   const sold = applySales(next);
   if (!sold.length) pushLog(next, "No corners ran. Station a dealer and keep product in the stash.", "mute");

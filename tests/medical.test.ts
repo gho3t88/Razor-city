@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createGame } from "../src/game/logic";
-import { applyCasualties, expireWounded, treatWounded, TREATMENT_COST } from "../src/game/medical";
+import { applyCasualties, expireWounded, treatWounded, TREATMENT_COST, treatmentCostPerSoldier } from "../src/game/medical";
 
 const game = createGame({ boss: "Medic", crew: "Test", difficulty: "street", seed: 42 });
 const initial = game.crewCounts.muscle;
@@ -24,3 +24,17 @@ assert.equal(expireWounded(game), 2);
 assert.equal(game.wounded, undefined);
 assert.equal(expireWounded(game), 0, "Wounded deaths must never be counted twice");
 console.log("PASS Soldier deaths, treatment, cash costs, save immutability and untreated injuries.");
+
+// Clinics protect injuries for one more week and lower costs without mutating saves.
+const clinicGame = createGame({ boss: "Clinic", crew: "Crew", difficulty: "street", seed: 43 });
+clinicGame.districts.find(d => d.owner === "player")!.clinic = 2;
+assert.equal(treatmentCostPerSoldier(clinicGame), 280);
+applyCasualties(clinicGame, 2);
+const clinicTreated = treatWounded(clinicGame, 1);
+assert.ok(clinicTreated.ok);
+assert.equal(clinicTreated.state.cash, clinicGame.cash - 280);
+clinicGame.week += 1;
+assert.equal(expireWounded(clinicGame), 0);
+clinicGame.week += 1;
+assert.equal(expireWounded(clinicGame), 1);
+console.log("PASS medical clinics reduce treatment cost and extend recovery.");

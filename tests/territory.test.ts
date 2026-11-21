@@ -37,3 +37,10 @@ seized.districts.find(d => d.id === owned.id)!.owner = "neutral";
 assert.equal(soldierCapacity(seized), 40);
 assert.equal(recruit(seized, "muscle").ok, false);
 console.log("PASS Barracks increase recruitment capacity and losing territory removes that capacity.");
+
+const clinicUpgrade = upgradeTerritory(s, owned.id, "clinic");
+assert.ok(clinicUpgrade.ok);
+assert.equal(clinicUpgrade.state.districts.find(d => d.id === owned.id)!.clinic, 1);
+assert.equal(clinicUpgrade.state.districts.find(d => d.id === owned.id)!.defense, before);
+assert.equal(clinicUpgrade.state.cash, cash - territoryCost("clinic", 0));
+console.log("PASS clinic upgrade state and cash accounting.");

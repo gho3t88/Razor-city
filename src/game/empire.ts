@@ -85,12 +85,14 @@ export function payOffThreat(state:GameState,id:string):Result {
   const error=ready(state);if(error)return {ok:false,error};const t=empireOf(state).threats.find(t=>t.id===id&&t.status==="pending");if(!t)return {ok:false,error:"That threat is no longer active."};const cost=threatPayoff(t);
   if(state.cash<cost||state.ap<1)return {ok:false,error:`Requires one move and $${cost.toLocaleString("en-US")}.`};const s=structuredClone(state);const next=init(s).threats.find(t=>t.id===id)!;next.status="paid";next.report="You paid off the counterattack and secured a two-week truce.";s.gangs[t.gang].truceWeeks=Math.max(2,s.gangs[t.gang].truceWeeks);s.cash-=cost;s.stats.spent+=cost;s.ap--;log(s,`${s.gangs[t.gang].name} called off their counterattack for $${cost.toLocaleString("en-US")}.`);return {ok:true,state:s,fx:"cash"};
 }
-export function resolveRetaliations(s:GameState,rng:()=>number,capture:(gang:GangId,region:string)=>void,onBattle:(won:boolean,strength:number,region:string,gang:GangId)=>void){
+export function resolveRetaliations(s:GameState,rng:()=>number,capture:(gang:GangId,region:string)=>void,onBattle:(won:boolean,strength:number,region:string,gang:GangId,details:{defenders:number;defense:number;dead:number})=>void){
  const acted=new Set<GangId>();for(const t of empireOf(s).threats){if(t.status!=="pending")continue;const gang=s.gangs[t.gang];const d=s.districts.find(d=>d.id===t.region)!;
  if(gang.truceWeeks>0){t.status="truce";t.report="A truce stopped the attack.";log(s,`${gang.name} honored their truce and cancelled the counterattack.`);continue;}
  if(d.owner!=="player"||!gang.alive){t.status="cancelled";t.report="The target or rival crew is no longer available.";continue;}
  if(t.dueWeek>s.week)continue;acted.add(t.gang);const won=d.defense*(.9+specialistBonus(s,"power"))>=t.strength*(.82+rng()*.4);
  t.status=won?"defended":"lost";t.report=won?`${d.name} held against ${gang.name}.`:`${gang.name} recaptured ${d.name}.`;
- onBattle(won,t.strength,t.region,t.gang);if(!won)capture(t.gang,t.region);else gang.muscle=Math.max(1,gang.muscle-2);log(s,t.report,won?"gold":"blood");
+ const defenders=d.stationMuscle,defense=d.defense,activeBefore=s.crewCounts.muscle;
+ if(!won)capture(t.gang,t.region);else gang.muscle=Math.max(1,gang.muscle-2);
+ onBattle(won,t.strength,t.region,t.gang,{defenders,defense,dead:Math.max(0,activeBefore-s.crewCounts.muscle)});log(s,t.report,won?"gold":"blood");
  }return acted;
 }
