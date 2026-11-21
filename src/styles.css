@@ -336,3 +336,22 @@
   touch-action: pan-x pan-y;
 }
 .region-market-content, .contact-content { min-height: 0; }
+
+/* Android 15+ edge-to-edge: keep full-screen overlays clear of status and gesture bars.
+   viewport-fit=cover is set in index.html; env() resolves to zero in desktop browsers. */
+.contact-backdrop, .region-market-backdrop {
+  padding-top: max(12px, env(safe-area-inset-top, 0px));
+  padding-right: max(12px, env(safe-area-inset-right, 0px));
+  padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(12px, env(safe-area-inset-left, 0px));
+}
+.training-recovery {
+  padding-top: max(24px, env(safe-area-inset-top, 0px));
+  padding-right: max(24px, env(safe-area-inset-right, 0px));
+  padding-bottom: max(24px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(24px, env(safe-area-inset-left, 0px));
+}
+.game-viewport {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
