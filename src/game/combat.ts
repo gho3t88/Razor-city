@@ -1,3 +1,4 @@
+import { applyCasualties } from "./medical";
 import { garageEscapeBonus, medicalLosses, rememberEscape, rememberFight, specialistBonus } from "./empire";
 import { eventEffects } from "./world-events";
 import type { GameState } from "./types";
@@ -110,7 +111,7 @@ export function resolveAmbush(state: GameState, choice: "run" | "fight" | "surre
     grantFightRewards(s, won, ambush.attackers);
     s.heat = Math.min(100, s.heat + (won ? 6 : 4));
     if (won) { const loot = 400 + ambush.attackers * 180; s.cash += loot; s.stats.earned += loot; report = `Ambush beaten. +$${loot.toLocaleString("en-US")}. Continuing your trip.`; }
-    else { const losses = Math.min(free, medicalLosses(s, Math.max(1, Math.floor(ambush.attackers / 3)))); s.crewCounts.muscle -= losses; report = `Ambush lost. ${losses} muscle lost. ${robbery(.12, .2)} Retreated to safety.`; }
+    else { const losses = Math.min(free, medicalLosses(s, Math.max(1, Math.floor(ambush.attackers / 3)))); const casualties = applyCasualties(s, losses); report = `Ambush lost. ${casualties.dead} dead, ${casualties.wounded} wounded. ${robbery(.12, .2)} Retreated to safety.`; }
   } else if (choice === "run") {
     const escaped = roll(s) < escapeChance(s);
     if (escaped) { c.escapes++; report = "You escaped the ambush and returned to your starting block."; }

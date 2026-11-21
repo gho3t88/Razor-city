@@ -1,0 +1,26 @@
+import assert from "node:assert/strict";
+import { createGame } from "../src/game/logic";
+import { applyCasualties, expireWounded, treatWounded, TREATMENT_COST } from "../src/game/medical";
+
+const game = createGame({ boss: "Medic", crew: "Test", difficulty: "street", seed: 42 });
+const initial = game.crewCounts.muscle;
+const result = applyCasualties(game, 4);
+assert.deepEqual(result, { dead: 2, wounded: 2 });
+assert.equal(game.crewCounts.muscle, initial - 4);
+assert.equal(game.wounded?.count, 2);
+const treated = treatWounded(game, 1);
+assert.ok(treated.ok);
+assert.equal(treated.state.crewCounts.muscle, initial - 3);
+assert.equal(treated.state.wounded?.count, 1);
+assert.equal(treated.state.cash, game.cash - TREATMENT_COST);
+assert.equal(game.wounded?.count, 2, "Treatment must not mutate the original save");
+assert.equal(treatWounded(game, 3).ok, false, "Cannot treat soldiers who are not wounded");
+const unpaid = structuredClone(game);
+unpaid.cash = 0;
+assert.equal(treatWounded(unpaid, 1).ok, false);
+assert.equal(expireWounded(game), 0, "Wounds should survive the week of injury");
+game.week += 1;
+assert.equal(expireWounded(game), 2);
+assert.equal(game.wounded, undefined);
+assert.equal(expireWounded(game), 0, "Wounded deaths must never be counted twice");
+console.log("PASS Soldier deaths, treatment, cash costs, save immutability and untreated injuries.");

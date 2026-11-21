@@ -54,6 +54,20 @@ assert.equal(tradeRegion({ ...g, phase: "summary" }, "hollow", "dust", 1, "sell"
 assert.equal(tradeRegion(travel, "hollow", "dust", 1, "sell").ok, false);
 g.regionMarkets!.hollow.products.dust.buyers = 0;
 assert.equal(tradeRegion(g, "hollow", "dust", 1, "sell").ok, false);
+const invalidMarket = fresh();
+invalidMarket.regionMarkets!.hollow.products.dust.sell = -10;
+assert.equal(tradeRegion(invalidMarket, "hollow", "dust", 1, "sell").ok, false);
+invalidMarket.regionMarkets!.hollow.products.dust.sell = 10;
+invalidMarket.regionMarkets!.hollow.products.dust.buy = 9;
+assert.equal(tradeRegion(invalidMarket, "hollow", "dust", 1, "buy").ok, false);
+invalidMarket.regionMarkets!.hollow.products.dust.buy = 20;
+invalidMarket.regionMarkets!.hollow.products.dust.buyers = -1;
+assert.equal(tradeRegion(invalidMarket, "hollow", "dust", 1, "sell").ok, false);
+invalidMarket.regionMarkets!.hollow.products.dust.buyers = 100;
+invalidMarket.regionMarkets!.hollow.products.dust.supply = 1_000_000_000_000_000;
+invalidMarket.cash = Number.MAX_SAFE_INTEGER;
+assert.equal(tradeRegion(invalidMarket, "hollow", "dust", 1_000_000_000_000_000, "buy").ok, false);
+console.log("PASS Corrupted market quotes and overflowing trade totals are rejected.");
 console.log("PASS Direct buys and sales conserve cash and inventory, consume local capacity, shift prices, and reject remote, closed, invalid or unaffordable trades.");
 
 g = fresh(); const before = structuredClone(g.regionMarkets!);

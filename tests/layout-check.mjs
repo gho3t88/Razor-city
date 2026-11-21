@@ -22,6 +22,7 @@ async function inside(locator, width, height) {
 try {
   await page.goto("http://127.0.0.1:5178");
   await page.getByRole("button", { name: "Take the docks", exact: true }).click();
+  await page.getByRole("button", { name: "Skip tutorial", exact: true }).click();
   // Tester #06: keyboard Escape and Android Back share the same handler.
   // Dismissing a sheet must not exit the game or discard saved progress.
   await page.getByRole("button", { name: "Market", exact: true }).click();
@@ -40,8 +41,10 @@ try {
   await page.getByRole("button", { name: "Save & main menu" }).click();
   await page.getByRole("button", { name: /Continue Hollow Kings/ }).click();
   await page.getByRole("button", { name: "Close week", exact: true }).waitFor();
+  if (await page.getByRole("button", { name: "Skip tutorial", exact: true }).count()) await page.getByRole("button", { name: "Skip tutorial", exact: true }).click();
   for (const [width, height] of [[393, 760], [360, 640], [320, 568], [852, 393], [1280, 900]]) {
     await page.setViewportSize({ width, height });
+    if (await page.getByRole("button", { name: "Skip tutorial", exact: true }).count()) await page.getByRole("button", { name: "Skip tutorial", exact: true }).click();
     await page.getByRole("button", { name: "Ironworks, Iron Saints", exact: true }).click();
     await inside(page.getByRole("button", { name: "Travel here", exact: true }), width, height);
     await inside(page.getByRole("button", { name: "Attack · 1 move", exact: true }), width, height);
@@ -87,6 +90,7 @@ try {
   await page.setViewportSize({ width: 393, height: 760 });
   await page.getByRole("button", { name: "Blackwater, open", exact: true }).click();
   await page.evaluate(async () => { const { useRazor } = await import("/src/game/store.ts"); const g = structuredClone(useRazor.getState().game); g.seed = 42; useRazor.setState({ game: g }); });
+  if (await page.getByRole("button", { name: "Skip tutorial", exact: true }).count()) await page.getByRole("button", { name: "Skip tutorial", exact: true }).click();
   await page.getByRole("button", { name: "Travel here", exact: true }).click();
   await page.getByText("Crew arrived at Blackwater.", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Ironworks, Iron Saints", exact: true }).click();

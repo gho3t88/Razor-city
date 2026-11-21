@@ -12,12 +12,13 @@ async function readGame() { return page.evaluate(async () => (await import('/src
 try {
   await page.goto("http://127.0.0.1:5181");
   await page.getByRole("button", { name: "Take the docks", exact: true }).click();
+  await page.getByRole("button", { name: "Skip tutorial", exact: true }).click();
   await page.getByRole("button", { name: "Black market and training" }).click();
   await page.getByRole("dialog", { name: "BLACK MARKET & TRAINING" }).waitFor();
   assert.equal(await page.locator(".weapon-card").count(), 9);
   for (const [width,height] of [[393,760],[320,568],[852,393]]) {
     await page.setViewportSize({width,height});
-    const box = await page.getByRole("dialog").boundingBox();
+    const box = await page.getByRole("dialog", { name: "BLACK MARKET & TRAINING" }).boundingBox();
     assert.ok(box.x >= 0 && box.y >= 0 && box.x + box.width <= width + 1 && box.y + box.height <= height + 1);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),false);
     await page.screenshot({ path: `test-results/black-market-${width}x${height}.png` });

@@ -12,9 +12,16 @@ async function game() { return page.evaluate(async () => (await import('/src/gam
 try {
   await page.goto("http://127.0.0.1:5180");
   await page.getByRole("button", { name: "Take the docks", exact: true }).click();
-  await page.getByRole("button", { name: "Trade", exact: true }).click();
+  await page.getByRole("button", { name: "Skip tutorial", exact: true }).click();
+  await page.getByRole("button", { name: "Inventory", exact: true }).click();
+  const inventory = page.getByRole("dialog", { name: "Your inventory" });
+  await inventory.waitFor();
+  assert.equal(await inventory.getByText("Yellow Dust", { exact: true }).count(), 1);
+  await inventory.getByRole("button", { name: "Trade Yellow Dust" }).click();
+  await page.getByRole("dialog", { name: "Regional market" }).waitFor();
   const dialog = page.getByRole("dialog", { name: "Regional market" });
   await dialog.waitFor();
+  assert.equal(await dialog.locator(".inventory-market-summary button").count(), 4, "All product quantities must be visible at the top of market");
   for (const [width, height] of [[393,760], [320,568], [852,393]]) {
     await page.setViewportSize({ width, height });
     const box = await dialog.boundingBox();
@@ -25,7 +32,12 @@ try {
   await page.setViewportSize({ width: 393, height: 760 });
   const before = await game(); const price = before.regionMarkets.hollow.products.dust.sell;
   await page.getByRole("spinbutton", { name: "Yellow Dust units", exact: true }).fill("5");
-  await page.getByRole("button", { name: `Sell 5 · $${(5 * price).toLocaleString("en-US")}`, exact: true }).click();
+  await page.locator(".market-product").first().locator(".market-sell").click();
+  assert.equal((await game()).cash, before.cash, "Opening trade confirmation must not charge or credit cash");
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  assert.equal((await game()).cash, before.cash, "Cancel must leave game unchanged");
+  await page.locator(".market-product").first().locator(".market-sell").click();
+  await page.getByRole("button", { name: "Confirm sell", exact: true }).click();
   const after = await game(); assert.equal(after.cash, before.cash + price * 5); assert.equal(after.stash.dust, before.stash.dust - 5);
   const savedMarket = after.regionMarkets.hollow;
   await page.getByRole("button", { name: "Close regional market" }).click();

@@ -32,6 +32,8 @@ export interface District {
   corners: number;
   loyalty: number;
   stationMuscle: number;
+  cameras?: number;
+  barracks?: number;
   stationDealers: number;
   focus: ProductId | "auto";
 }
@@ -93,6 +95,7 @@ export interface WeekReport {
 }
 
 export interface GameState {
+  wounded?: { count: number; sinceWeek: number };
   empire?: import("./empire").Empire;
   regionEvents?: { week: number; events: Record<string, import("./world-events").RegionEvent | null> };
   fightScene?: import("./fight-scene").FightScene;

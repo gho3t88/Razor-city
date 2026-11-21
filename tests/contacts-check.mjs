@@ -18,11 +18,13 @@ const forceBuyer = async () => page.evaluate(async () => {
 try {
   await page.goto("http://127.0.0.1:5179");
   await page.getByRole("button", { name: "Take the docks", exact: true }).click();
+  await page.getByRole("button", { name: "Skip tutorial", exact: true }).click();
   await page.getByRole("button", { name: "Contacts and active deals" }).waitFor();
   await forceBuyer();
   await page.getByRole("dialog", { name: "INCOMING CALL" }).waitFor();
   await page.reload();
   await page.getByRole("button", { name: /Continue Test|Continue Hollow Kings/ }).click();
+  if (await page.getByRole("button", { name: "Skip tutorial", exact: true }).count()) await page.getByRole("button", { name: "Skip tutorial", exact: true }).click();
   await page.getByRole("dialog", { name: "INCOMING CALL" }).waitFor();
   for (const [width, height] of [[393, 760], [320, 568], [852, 393]]) {
     await page.setViewportSize({ width, height });

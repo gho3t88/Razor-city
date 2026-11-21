@@ -1,12 +1,15 @@
-name: Build Razor City Play Internal Test AAB
+name: Build Razor City Play Signed Test AAB
 # Internal testing bundles use Google test ads.
 
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, development/post-testing-overhaul]
     paths:
       - '.github/workflows/android-release-aab.yml'
+      - 'android/app/build.gradle'
+      - 'src/**'
+      - 'tests/**'
 
 jobs:
   build-release:
