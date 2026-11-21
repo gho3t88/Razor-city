@@ -11,7 +11,7 @@ let failWrites = false;
 Object.assign(globalThis, { localStorage: {
   getItem: (key: string) => saved.get(key) ?? null,
   setItem: (key: string, value: string) => { if (failWrites) throw new Error("Storage full"); saved.set(key, String(value)); },
-  removeItem: (key: string) => { saved.delete(key); },
+  removeItem: (key: string) => { if (failWrites) throw new Error("Storage unavailable"); saved.delete(key); },
   clear: () => saved.clear(),
 } });
 
@@ -139,5 +139,17 @@ failWrites = false;
 useRazor.getState().tickCity();
 assert.equal(useRazor.getState().game?.cityMap?.order, null);
 checks.push("Storage failure preserves unfinished orders until a successful retry.");
+
+// A failed delete must not make the game claim the save was abandoned.
+useRazor.setState({ game: fresh(), hasSave: true });
+failWrites = true;
+useRazor.getState().abandon();
+assert.ok(useRazor.getState().game, "Failed deletion must keep the current game");
+assert.equal(useRazor.getState().hasSave, true);
+failWrites = false;
+useRazor.getState().abandon();
+assert.equal(useRazor.getState().game, null);
+assert.equal(useRazor.getState().hasSave, false);
+checks.push("Abandoning a game respects storage failures and only clears the save on success.");
 
 console.log(checks.map(s => `PASS ${s}`).join("\n"));
