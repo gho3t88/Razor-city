@@ -1,0 +1,21 @@
+import assert from "node:assert/strict";
+import { createGame } from "../src/game/logic";
+import { territoryCost, upgradeTerritory } from "../src/game/territory";
+
+const s = createGame({ boss: "Test", crew: "Test Crew", difficulty: "street", seed: 31 });
+const owned = s.districts.find(d => d.owner === "player")!;
+assert.ok(owned, "A starting territory is required");
+const before = owned.defense;
+const cash = s.cash;
+const ap = s.ap;
+const r = upgradeTerritory(s, owned.id, "cameras");
+assert.ok(r.ok);
+assert.equal(r.state.districts.find(d => d.id === owned.id)!.cameras, 1);
+assert.equal(r.state.districts.find(d => d.id === owned.id)!.defense, before + 8);
+assert.equal(r.state.cash, cash - territoryCost("cameras", 0));
+assert.equal(r.state.ap, ap - 1);
+assert.equal(owned.cameras ?? 0, 0, "Original saved game must remain unchanged");
+assert.equal(upgradeTerritory(s, s.districts.find(d => d.owner !== "player")!.id, "cameras").ok, false);
+const broke = structuredClone(s); broke.cash = 0;
+assert.equal(upgradeTerritory(broke, owned.id, "cameras").ok, false);
+console.log("PASS Territory upgrades, defenses, cash, action points, and save immutability.");
