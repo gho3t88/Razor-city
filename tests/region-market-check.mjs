@@ -12,9 +12,15 @@ async function game() { return page.evaluate(async () => (await import('/src/gam
 try {
   await page.goto("http://127.0.0.1:5180");
   await page.getByRole("button", { name: "Take the docks", exact: true }).click();
-  await page.getByRole("button", { name: "Trade", exact: true }).click();
+  await page.getByRole("button", { name: "Inventory", exact: true }).click();
+  const inventory = page.getByRole("dialog", { name: "Your inventory" });
+  await inventory.waitFor();
+  assert.equal(await inventory.getByText("Yellow Dust", { exact: true }).count(), 1);
+  await inventory.getByRole("button", { name: "Trade Yellow Dust" }).click();
+  await page.getByRole("dialog", { name: "Regional market" }).waitFor();
   const dialog = page.getByRole("dialog", { name: "Regional market" });
   await dialog.waitFor();
+  assert.equal(await dialog.locator(".inventory-market-summary button").count(), 4, "All product quantities must be visible at the top of market");
   for (const [width, height] of [[393,760], [320,568], [852,393]]) {
     await page.setViewportSize({ width, height });
     const box = await dialog.boundingBox();
