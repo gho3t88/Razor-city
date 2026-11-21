@@ -85,8 +85,13 @@ export function tradeRegion(state: GameState, region: string, product: ProductId
   if (location !== region) return { ok: false, error: "Travel to this region to trade here." };
   if (!state.districts.some(d => d.id === region) || !PRODUCT_IDS.includes(product) || !Number.isSafeInteger(quantity) || quantity < 1 || !["buy", "sell"].includes(side)) return { ok: false, error: "Choose a valid product and whole number of units." };
   const e = structuredClone(regionMarket(state, region)); const q = e.products[product];
+  // A malformed legacy quote must never mint money or allow negative inventory.
+  if (!Number.isSafeInteger(q.sell) || q.sell < 1 || !Number.isSafeInteger(q.buy) || q.buy <= q.sell ||
+      !Number.isSafeInteger(q.buyers) || q.buyers < 0 || !Number.isSafeInteger(q.supply) || q.supply < 0)
+    return { ok: false, error: "Market quote is invalid. Try reopening the region." };
   if (side === "sell" && (state.stash[product] < quantity || q.buyers < quantity)) return { ok: false, error: "Your stash or local buyer demand cannot fill that sale." };
   if (side === "buy" && (q.supply < quantity || state.cash < q.buy * quantity)) return { ok: false, error: "Not enough cash or local stock for that purchase." };
+  if (!Number.isSafeInteger(quantity * (side === "sell" ? q.sell : q.buy))) return { ok: false, error: "Trade total exceeds the safe transaction limit." };
   const s = structuredClone(state); const total = quantity * (side === "sell" ? q.sell : q.buy);
   if (side === "sell") {
     s.stash[product] -= quantity; s.cash += total; s.stats.earned += total; s.stats.productSold += quantity;
