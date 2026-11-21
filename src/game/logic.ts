@@ -606,6 +606,7 @@ export function shake(state: GameState, id: string): Result {
 
 export function hit(state: GameState, id: string, commit: number): Result {
   const next = clone(state);
+  const priorXp = combatOf(next).xp, priorCredits = combatOf(next).credits, priorCash = next.cash;
   const d = districtById(next, id);
   if (!d || d.owner === "player") return fail("Fight for a rival or unclaimed block.");
   if (!adjacentToPlayer(next, id)) return fail("No approach from your blocks.");
@@ -647,7 +648,7 @@ export function hit(state: GameState, id: string, commit: number): Result {
     grantFightRewards(next, true, Math.max(1, Math.round(def / 6)));
     pushLog(next, `${d.name} falls. ${casualties.dead} dead, ${casualties.wounded} wounded.${homeLine}`, "blood");
     if(gang) queueRetaliation(next,gang.id,d.id);
-    finishFight(next,true,`Victory in ${d.name}. ${casualties.dead} dead, ${casualties.wounded} wounded. The block belongs to you.`);
+    finishFight(next,true,`Victory in ${d.name}. ${casualties.dead} dead, ${casualties.wounded} wounded. The block belongs to you.`,{xp:combatOf(next).xp-priorXp,credits:combatOf(next).credits-priorCredits,cash:next.cash-priorCash,dead:casualties.dead,wounded:casualties.wounded,territoryCaptured:true});
     return finish(next, "hit");
   }
   const losses = Math.min(send, medicalLosses(next, Math.max(1, Math.round(send * (0.34 + rng() * 0.28)))));
@@ -658,7 +659,7 @@ export function hit(state: GameState, id: string, commit: number): Result {
   next.respect = clamp(next.respect - 2, 0, 100);
   grantFightRewards(next, false, Math.max(1, Math.round(def / 6)));
   pushLog(next, `${gang?.name ?? "Local defenders"} hold ${d.name}. ${casualties.dead} dead, ${casualties.wounded} wounded.`, "blood");
-  finishFight(next,false,`Defeat in ${d.name}. ${losses} soldier losses. Your crew pulled back.`);
+  finishFight(next,false,`Defeat in ${d.name}. ${casualties.dead} dead, ${casualties.wounded} wounded. Your crew pulled back.`,{xp:combatOf(next).xp-priorXp,credits:combatOf(next).credits-priorCredits,cash:next.cash-priorCash,dead:casualties.dead,wounded:casualties.wounded,territoryCaptured:false});
   return finish(next, "hit");
 }
 
