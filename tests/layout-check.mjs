@@ -23,6 +23,12 @@ try {
   await page.goto("http://127.0.0.1:5178");
   await page.getByRole("button", { name: "Take the docks", exact: true }).click();
   await page.getByRole("button", { name: "Skip tutorial", exact: true }).click();
+  const firstMapWidth = await page.locator(".city-svg").evaluate(el => el.getBoundingClientRect().width);
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  const zoomedMapWidth = await page.locator(".city-svg").evaluate(el => el.getBoundingClientRect().width);
+  assert.ok(zoomedMapWidth > firstMapWidth * 1.25, "Zoom control must enlarge the city SVG");
+  await page.getByRole("button", { name: "Zoom out" }).click();
+  console.log("PASS city zoom controls");
   // Tester #06: keyboard Escape and Android Back share the same handler.
   // Dismissing a sheet must not exit the game or discard saved progress.
   await page.getByRole("button", { name: "Market", exact: true }).click();

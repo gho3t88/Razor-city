@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { cityMapOf, crewPoint, waypointRoute } from "@/game/city-map";
 import { adjacentToPlayer, freeMuscle, hitOutlook, isGangId } from "@/game/logic";
 import { districtPoint, districtPolygon } from "@/game/city-geometry";
+import { clampMapZoom, pinchZoomTarget } from "@/game/map-zoom";
 import { useRazor } from "@/game/store";
 import type { GameState, Owner } from "@/game/types";
 
@@ -26,7 +27,9 @@ export function CityMap({ game, onManage, onTrade, onGear, toast }: { game: Game
   const [now, setNow] = useState(Date.now());
   const [planning, setPlanning] = useState(false);
   const [stops, setStops] = useState<string[]>([]);
-  const [zoom, setZoom] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const zoomRef = useRef(1);
+  const pinchRef = useRef<{ distance: number; zoom: number } | null>(null);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [soldiers, setSoldiers] = useState(4);
   const map = cityMapOf(game);
@@ -58,7 +61,7 @@ export function CityMap({ game, onManage, onTrade, onGear, toast }: { game: Game
   }, [order, tick]);
 
   useEffect(() => {
-    if (zoom) return;
+    if (zoom > 1) return;
     const frame = requestAnimationFrame(() => {
       const el = scroll.current;
       const svg = el?.querySelector("svg");
@@ -69,6 +72,56 @@ export function CityMap({ game, onManage, onTrade, onGear, toast }: { game: Game
     });
     return () => cancelAnimationFrame(frame);
   }, [selected.id, zoom]);
+
+  // Store the live scale in a ref so two-finger gestures never use stale React state.
+  function adjustZoom(value: number, focal?: { x: number; y: number }) {
+    const el = scroll.current;
+    const next = clampMapZoom(value), previous = zoomRef.current;
+    if (!el || next === previous) return;
+    const bounds = el.getBoundingClientRect();
+    const x = focal ? focal.x - bounds.left : el.clientWidth / 2;
+    const y = focal ? focal.y - bounds.top : el.clientHeight / 2;
+    const contentX = (el.scrollLeft + x) / previous;
+    const contentY = (el.scrollTop + y) / previous;
+    zoomRef.current = next;
+    setZoom(next);
+    requestAnimationFrame(() => {
+      el.scrollLeft = contentX * next - x;
+      el.scrollTop = contentY * next - y;
+    });
+  }
+
+  useEffect(() => {
+    const el = scroll.current;
+    if (!el) return;
+    const separation = (event: TouchEvent) =>
+      Math.hypot(event.touches[0].clientX - event.touches[1].clientX, event.touches[0].clientY - event.touches[1].clientY);
+    const onStart = (event: TouchEvent) => {
+      if (event.touches.length === 2) pinchRef.current = { distance: Math.max(1, separation(event)), zoom: zoomRef.current };
+    };
+    const onMove = (event: TouchEvent) => {
+      if (event.touches.length !== 2) return;
+      event.preventDefault(); // Never zoom the whole web page; only the city map.
+      if (!pinchRef.current) onStart(event);
+      const gesture = pinchRef.current;
+      if (!gesture) return;
+      adjustZoom(pinchZoomTarget(gesture.zoom, gesture.distance, separation(event)), {
+        x: (event.touches[0].clientX + event.touches[1].clientX) / 2,
+        y: (event.touches[0].clientY + event.touches[1].clientY) / 2,
+      });
+    };
+    const onEnd = (event: TouchEvent) => { if (event.touches.length < 2) pinchRef.current = null; };
+    el.addEventListener("touchstart", onStart, { passive: true });
+    el.addEventListener("touchmove", onMove, { passive: false });
+    el.addEventListener("touchend", onEnd);
+    el.addEventListener("touchcancel", onEnd);
+    return () => {
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchmove", onMove);
+      el.removeEventListener("touchend", onEnd);
+      el.removeEventListener("touchcancel", onEnd);
+    };
+  }, []);
 
   function choose(id: string) {
     select(id);
@@ -87,16 +140,11 @@ export function CityMap({ game, onManage, onTrade, onGear, toast }: { game: Game
         <span className="city-eyebrow">CITY OPERATIONS</span>
         <button type="button" className={`${control} city-gear-button`} onClick={onGear} aria-label="Black market and training">Gear · L{levelOf(game)}</button>
         <details className="city-key"><summary>Factions</summary><div>{Object.entries(colors).map(([id, color]) => <span key={id}><i style={{ background: color }} />{id === "player" ? "You" : id === "neutral" ? "Open" : game.gangs[id as keyof typeof game.gangs].name}</span>)}</div></details>
-        <button type="button" className={control} aria-pressed={zoom} onClick={() => {
-          setZoom(!zoom);
-          if (!zoom) requestAnimationFrame(() => {
-            const el = scroll.current;
-            if (el) { const p = districtPoint(selected); el.scrollTo({ left: p.x / 660 * 900 - el.clientWidth / 2, top: p.y / 620 * 845 - el.clientHeight / 2 }); }
-          });
-        }}>{zoom ? "Fit city" : "Zoom +"}</button>
+        <button type="button" className={control} aria-label="Zoom out" disabled={zoom <= 1} onClick={() => adjustZoom(zoomRef.current - .35)}>−</button>
+        <button type="button" className={control} aria-label="Zoom in" disabled={zoom >= 2.6} onClick={() => adjustZoom(zoomRef.current + .35)}>+</button>
       </div>
-      <div ref={scroll} className="city-scroll" tabIndex={zoom ? 0 : undefined} aria-label="City map; zoom and drag to explore streets">
-        <svg className={`city-svg ${zoom ? "city-zoom" : ""}`} viewBox="0 0 660 620" aria-label="Razor City district map">
+      <div ref={scroll} className="city-scroll" tabIndex={0} aria-label="City map; pinch with two fingers or use the zoom buttons, then drag to explore streets">
+        <svg className="city-svg" style={{ width: `${zoom * 100}%`, minWidth: `${zoom * 100}%` }} viewBox="0 0 660 620" aria-label="Razor City district map">
           <defs>
             <pattern id="water-lines" width="24" height="12" patternUnits="userSpaceOnUse"><path d="M0 6h12" stroke="#36748a" strokeWidth="1" /></pattern>
             <pattern id="city-grain" width="12" height="12" patternUnits="userSpaceOnUse"><path d="M1 2h1m6 6h1" stroke="#98aaa0" strokeOpacity=".07" /></pattern>

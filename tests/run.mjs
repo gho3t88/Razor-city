@@ -1,6 +1,7 @@
 import { createServer } from "vite";
 const server = await createServer({ server: { middlewareMode: true }, appType: "custom" });
 try {
+  await server.ssrLoadModule("/tests/map-zoom.test.ts");
   await server.ssrLoadModule("/tests/rewards-and-input.test.ts");
   await server.ssrLoadModule("/tests/territory.test.ts");
   await server.ssrLoadModule("/tests/medical.test.ts");

@@ -1,0 +1,10 @@
+import assert from "node:assert/strict";
+import { clampMapZoom, pinchZoomTarget } from "../src/game/map-zoom";
+assert.equal(clampMapZoom(-1),1);
+assert.equal(clampMapZoom(1.35),1.35);
+assert.equal(clampMapZoom(9),2.6);
+assert.equal(pinchZoomTarget(1,100,200),2);
+assert.equal(pinchZoomTarget(2,100,25),1);
+assert.equal(pinchZoomTarget(2,0,200),2);
+assert.equal(pinchZoomTarget(1,100,600),2.6);
+console.log("PASS pinch-to-zoom clamping and relative gesture scaling.");
