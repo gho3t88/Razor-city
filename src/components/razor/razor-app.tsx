@@ -754,9 +754,12 @@ function MarketSheet({ game, onGear }: { game: GameState; onGear: () => void }) 
   const claimSponsorBonus = async () => {
     if (adBusy) return;
     setAdBusy(true);
-    const earned = await showRewarded();
-    if (earned) grantAdReward();
-    setAdBusy(false);
+    try {
+      const earned = await showRewarded();
+      if (earned) grantAdReward();
+    } finally {
+      setAdBusy(false);
+    }
   };
   return (
     <Sheet title="WHOLESALE" onClose={() => setModal("none")}>
