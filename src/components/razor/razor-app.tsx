@@ -230,14 +230,37 @@ function StartScreen() {
   );
 }
 
+function SwitchPortrait({ size = 64 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" role="img" aria-label="Switch, hooded streetwise fixer" className="shrink-0 rounded-lg border border-gold/60">
+      <defs>
+        <linearGradient id="switch-night" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#31362e"/><stop offset="1" stopColor="#0b1010"/></linearGradient>
+        <linearGradient id="switch-hood" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#49544a"/><stop offset="1" stopColor="#171d1b"/></linearGradient>
+      </defs>
+      <rect width="100" height="100" rx="12" fill="url(#switch-night)"/>
+      <path d="M5 100 Q10 77 29 70 L38 65 L63 65 L73 70 Q92 78 95 100Z" fill="#242e29" stroke="#a88a4b" strokeWidth="1.5"/>
+      <path d="M18 75 Q13 43 27 23 Q38 7 51 9 Q67 9 77 27 Q87 47 80 76 L65 68 L34 68Z" fill="url(#switch-hood)" stroke="#6b745f" strokeWidth="2"/>
+      <path d="M30 40 Q34 21 51 20 Q67 20 72 40 L69 58 Q65 73 51 76 Q37 72 33 57Z" fill="#b58b6b"/>
+      <path d="M30 42 Q35 20 51 19 Q66 20 73 42 L68 37 Q54 35 45 30 Q38 41 30 42Z" fill="#202722"/>
+      <path d="M36 47 Q43 43 49 47 L48 52 Q41 54 36 51Z M52 47 Q60 43 67 47 L66 51 Q59 54 53 52Z" fill="#111918" stroke="#d9ae5b" strokeWidth="1.5"/>
+      <path d="M48 49 L53 49" stroke="#d9ae5b" strokeWidth="2"/>
+      <path d="M50 52 L47 61 L54 61" fill="none" stroke="#825b46" strokeWidth="1.5"/>
+      <path d="M43 67 Q51 71 59 66" fill="none" stroke="#553b33" strokeWidth="2" strokeLinecap="round"/>
+      <path d="M34 72 L43 83 L50 76 L58 83 L67 72 L73 100 L27 100Z" fill="#171d1b" stroke="#76836b" strokeWidth="1.5"/>
+      <path d="M49 78 L50 99" stroke="#c49c54" strokeWidth="2"/>
+      <path d="M13 89 L27 83 M74 83 L88 90" stroke="#4e6052" strokeWidth="3"/>
+    </svg>
+  );
+}
+
 const TUTORIAL_STEPS = [
-  { title: "Welcome to Razor City", body: "Name's Switch. I know every shortcut in this city, and I'm your unofficial guide. First rule: keep your crew paid and your enemies guessing.", tip: "Nobody starts at the top. Not even you, boss.", face: "😎" },
-  { title: "Know your numbers", body: "See that bar up top? Cash keeps the lights on, respect opens doors, moves limit what you can do, and heat tells you how close the cops are.", tip: "When the heat climbs, I suddenly become hard to find.", face: "👀" },
-  { title: "Check your stash", body: "Tap Inventory to see every product you own. Check the local sale value and buyer limits before you promise anyone a deal.", tip: "Counting your stock is less exciting than losing it.", face: "📦" },
-  { title: "Make your first deal", body: "Market handles supplies and dealers. The regional market lets you trade at local prices. Check the quote, pick your quantity, then confirm.", tip: "Buy smart. Sell smarter. Never confuse inventory with cash.", face: "💰" },
-  { title: "Own the streets", body: "Tap a region on the map to inspect it. You can travel, manage your territory, or make a move on rival turf. Watch for ambushes.", tip: "A shortcut's only good if you make it home.", face: "🗺️" },
-  { title: "Build your crew", body: "Game Options has Businesses & Crew and Black Market & Training. Recruit muscle, get equipment, and patch up wounded soldiers.", tip: "Loyal people are worth more than fancy gear.", face: "🛡️" },
-  { title: "Ready to run the city?", body: "Close week when your moves are done. You'll get a report before the next week begins. Make sure your deals and defenses are ready.", tip: "That's your tour, boss. Now give this city something to talk about.", face: "🔥" },
+  { title: "Welcome to Razor City", body: "Name's Switch. I know every shortcut in this city, and I'm your unofficial guide. First rule: keep your crew paid and your enemies guessing.", tip: "Nobody starts at the top. Not even you, boss." },
+  { title: "Know your numbers", body: "See that bar up top? Cash keeps the lights on, respect opens doors, moves limit what you can do, and heat tells you how close the cops are.", tip: "When the heat climbs, I suddenly become hard to find." },
+  { title: "Check your stash", body: "Tap Inventory to see every product you own. Check the local sale value and buyer limits before you promise anyone a deal.", tip: "Counting your stock is less exciting than losing it." },
+  { title: "Make your first deal", body: "Market handles supplies and dealers. The regional market lets you trade at local prices. Check the quote, pick your quantity, then confirm.", tip: "Buy smart. Sell smarter. Never confuse inventory with cash." },
+  { title: "Own the streets", body: "Tap a region on the map to inspect it. You can travel, manage your territory, or make a move on rival turf. Watch for ambushes.", tip: "A shortcut's only good if you make it home." },
+  { title: "Build your crew", body: "Game Options has Businesses & Crew and Black Market & Training. Recruit muscle, get equipment, and patch up wounded soldiers.", tip: "Loyal people are worth more than fancy gear." },
+  { title: "Ready to run the city?", body: "Close week when your moves are done. You'll get a report before the next week begins. Make sure your deals and defenses are ready.", tip: "That's your tour, boss. Now give this city something to talk about." },
 ] as const;
 
 function switchAdvice(game: GameState): { title: string; message: string } {
@@ -440,7 +463,7 @@ function PlayScreen() {
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-ink/90 p-4">
           <section role="dialog" aria-modal="true" aria-labelledby="tutorial-title" className="w-full max-w-md rounded-xl border border-gold bg-panel p-5 shadow-2xl">
             <div className="mb-4 flex items-center gap-3 rounded-lg border border-line bg-ink/70 p-3">
-              <div className="flex size-16 shrink-0 items-center justify-center rounded-lg border border-gold/60 bg-panel-2 text-4xl" role="img" aria-label="Switch, your streetwise guide">{TUTORIAL_STEPS[tutorialStep].face}</div>
+              <SwitchPortrait size={64} />
               <div><p className="font-display text-xl text-gold">SWITCH</p><p className="text-xs text-mute">Your streetwise fixer · Tutorial guide</p></div>
             </div>
             <p className="text-xs font-semibold tracking-widest text-gold">STREET SMARTS · {tutorialStep + 1} / {TUTORIAL_STEPS.length}</p>
@@ -459,14 +482,14 @@ function PlayScreen() {
       )}
       {!switchMuted && tutorialStep === null && !switchOpen && game.week > 1 && switchDismissedWeek !== game.week && (
         <button type="button" className="fixed bottom-20 right-3 z-[35] max-w-[220px] rounded-xl border border-gold bg-panel px-3 py-2 text-left text-sm text-paper shadow-xl" onClick={() => { setSwitchOpen(true); setSwitchDismissedWeek(game.week); }} aria-label="Read Switch's advice">
-          <strong className="block text-gold">😎 Switch has a tip</strong><span className="text-xs text-mute">{switchTip?.title} · Tap to read</span>
+          <strong className="block text-gold">Switch has a tip</strong><span className="text-xs text-mute">{switchTip?.title} · Tap to read</span>
         </button>
       )}
-      {!switchMuted && tutorialStep === null && <button type="button" className="fixed bottom-20 left-3 z-[34] rounded-full border border-gold bg-panel px-3 py-2 text-xs text-gold shadow-xl" onClick={() => { setSwitchOpen(true); setSwitchDismissedWeek(game.week); }}>😎 Switch</button>}
+      {!switchMuted && tutorialStep === null && <button type="button" className="fixed bottom-20 left-3 z-[34] rounded-full border border-gold bg-panel px-3 py-2 text-xs text-gold shadow-xl" onClick={() => { setSwitchOpen(true); setSwitchDismissedWeek(game.week); }}><SwitchPortrait size={24} /> Switch</button>}
       {switchOpen && switchTip && (
         <div className="fixed inset-0 z-[115] flex items-center justify-center bg-ink/85 p-4">
           <section role="dialog" aria-modal="true" aria-label="Advice from Switch" className="w-full max-w-md rounded-xl border border-gold bg-panel p-5">
-            <p className="text-lg font-display text-gold">😎 SWITCH · STREET INTEL</p>
+            <div className="flex items-center gap-3"><SwitchPortrait size={56} /><p className="text-lg font-display text-gold">SWITCH · STREET INTEL</p></div>
             <h2 className="mt-2 text-xl font-semibold text-paper">{switchTip.title}</h2>
             <p className="mt-3 text-sm leading-relaxed text-paper">{switchTip.message}</p>
             <div className="mt-5 flex flex-wrap justify-between gap-2">
