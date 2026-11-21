@@ -41,8 +41,10 @@ try {
   await page.getByRole("button", { name: "Save & main menu" }).click();
   await page.getByRole("button", { name: /Continue Hollow Kings/ }).click();
   await page.getByRole("button", { name: "Close week", exact: true }).waitFor();
+  if (await page.getByRole("button", { name: "Skip tutorial", exact: true }).count()) await page.getByRole("button", { name: "Skip tutorial", exact: true }).click();
   for (const [width, height] of [[393, 760], [360, 640], [320, 568], [852, 393], [1280, 900]]) {
     await page.setViewportSize({ width, height });
+    if (await page.getByRole("button", { name: "Skip tutorial", exact: true }).count()) await page.getByRole("button", { name: "Skip tutorial", exact: true }).click();
     await page.getByRole("button", { name: "Ironworks, Iron Saints", exact: true }).click();
     await inside(page.getByRole("button", { name: "Travel here", exact: true }), width, height);
     await inside(page.getByRole("button", { name: "Attack · 1 move", exact: true }), width, height);
