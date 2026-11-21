@@ -248,9 +248,10 @@ const TUTORIAL_STEPS = [
   { title: "Welcome to Razor City", body: "Name's Switch. I know every shortcut in this city, and I'm your unofficial guide. First rule: keep your crew paid and your enemies guessing.", tip: "Nobody starts at the top. Not even you, boss." },
   { title: "Know your numbers", body: "See that bar up top? Cash keeps the lights on, respect opens doors, moves limit what you can do, and heat tells you how close the cops are.", tip: "When the heat climbs, I suddenly become hard to find." },
   { title: "Check your stash", body: "Tap Inventory to see every product you own. Check the local sale value and buyer limits before you promise anyone a deal.", tip: "Counting your stock is less exciting than losing it." },
-  { title: "Make your first deal", body: "Market handles supplies and dealers. The regional market lets you trade at local prices. Check the quote, pick your quantity, then confirm.", tip: "Buy smart. Sell smarter. Never confuse inventory with cash." },
-  { title: "Own the streets", body: "Tap a region on the map to inspect it. You can travel, manage your territory, or make a move on rival turf. Watch for ambushes.", tip: "A shortcut's only good if you make it home." },
-  { title: "Build your crew", body: "Game Options has Businesses & Crew and Black Market & Training. Recruit muscle, get equipment, and patch up wounded soldiers.", tip: "Loyal people are worth more than fancy gear." },
+  { title: "Make your first deal", body: "Open the regional Trade screen. Sell a small amount of stock and confirm the deal. Switch will wait while you make a real transaction.", tip: "Buy smart. Sell smarter. Never confuse inventory with cash." },
+  { title: "Own the streets", body: "Tap a different district on the map. I'll show you how to travel there next.", tip: "A shortcut's only good if you make it home." },
+  { title: "Travel through the city", body: "With your district selected, hit Travel here or plan a waypoint route. Your crew will move across the map, with a chance of ambush.", tip: "You can't run a city from your office." },
+  { title: "Build your crew", body: "Open Territory Manager to inspect buildings, recruit specialists and upgrade medical clinics. Tap a block you own to see its options.", tip: "Loyal people are worth more than fancy gear." },
   { title: "Ready to run the city?", body: "Close week when your moves are done. You'll get a report before the next week begins. Make sure your deals and defenses are ready.", tip: "That's your tour, boss. Now give this city something to talk about." },
 ] as const;
 
@@ -291,6 +292,9 @@ function PlayScreen() {
   const [tradeOpen, setTradeOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [tutorialStep, setTutorialStep] = useState<number | null>(null);
+  const [tutorialSalesBase, setTutorialSalesBase] = useState<number | null>(null);
+  const [tutorialSelectionBase, setTutorialSelectionBase] = useState<string | null>(null);
+  const [tutorialLocationBase, setTutorialLocationBase] = useState<string | null>(null);
   const [switchOpen, setSwitchOpen] = useState(false);
   const [switchMuted, setSwitchMuted] = useState(() => { try { return window.localStorage.getItem("razor-switch-muted") === "yes"; } catch { return false; } });
   const [switchDismissedWeek, setSwitchDismissedWeek] = useState<number | null>(null);
@@ -322,6 +326,25 @@ function PlayScreen() {
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exitPromptOpen, setExitPromptOpen] = useState(false);
+  // Unlike the original slide show, these steps advance after real in-game actions.
+  useEffect(() => {
+    if (!game || tutorialStep === null) return;
+    if (tutorialStep === 2 && inventoryOpen) setTutorialStep(3);
+    if (tutorialStep === 3) {
+      if (tutorialSalesBase === null) setTutorialSalesBase(game.stats.productSold);
+      else if (game.stats.productSold > tutorialSalesBase) setTutorialStep(4);
+    }
+    if (tutorialStep === 4) {
+      if (tutorialSelectionBase === null) setTutorialSelectionBase(game.selectedId);
+      else if (game.selectedId !== tutorialSelectionBase) setTutorialStep(5);
+    }
+    if (tutorialStep === 5) {
+      if (tutorialLocationBase === null) setTutorialLocationBase(cityMapOf(game).locationId);
+      else if (game.cityMap?.order || cityMapOf(game).locationId !== tutorialLocationBase) setTutorialStep(6);
+    }
+    if (tutorialStep === 6 && empireOpen) setTutorialStep(7);
+  }, [game, tutorialStep, inventoryOpen, empireOpen, tutorialSalesBase, tutorialSelectionBase, tutorialLocationBase]);
+
   const [shaking, setShaking] = useState(false);
   // The native Android Back listener is installed once. Its ref always points
   // at the latest open screen so an already-closed dialog cannot be reopened.
@@ -430,7 +453,7 @@ function PlayScreen() {
         <p className="mt-2 text-sm text-mute">Weekly sales forecast: {money(preview.cash)} · +{Math.round(preview.heat)} heat</p>
         <button type="button" className="combat-opening mt-4" onClick={() => { setSettingsOpen(false); setCombatOpen(true); }}>Black Market & Training</button>
         <button type="button" className="combat-opening" onClick={()=>{setSettingsOpen(false);setEmpireOpen(true);}}>Businesses & Crew</button>
-        <button type="button" className="combat-opening" onClick={() => { setSettingsOpen(false); setTutorialStep(0); }}>Replay beginning tutorial</button>
+        <button type="button" className="combat-opening" onClick={() => { setSettingsOpen(false); setTutorialSalesBase(null); setTutorialSelectionBase(null); setTutorialLocationBase(null); setTutorialStep(0); }}>Replay beginning tutorial</button>
         <button type="button" className="combat-opening" onClick={toggleSwitch}>{switchMuted ? "Enable Switch advice" : "Mute Switch advice"}</button>
         <div className="my-4"><TipSupport /></div>
         <button type="button" className={btnGhost} onClick={() => { void showPrivacyOptions(); }}>Privacy choices</button>
@@ -450,7 +473,7 @@ function PlayScreen() {
       {game.phase === "event" && game.pending ? <EventSheet /> : null}
       {game.phase === "summary" && game.report ? <SummarySheet /> : null}
       {game.phase === "won" || game.phase === "lost" ? <EndingSheet /> : null}
-      {tutorialStep !== null && (
+      {tutorialStep !== null && (tutorialStep < 2 || tutorialStep === TUTORIAL_STEPS.length - 1) && !inventoryOpen && !tradeOpen && !empireOpen && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-ink/90 p-4">
           <section role="dialog" aria-modal="true" aria-labelledby="tutorial-title" className="w-full max-w-md rounded-xl border border-gold bg-panel p-5 shadow-2xl">
             <div className="mb-4 flex items-center gap-3 rounded-lg border border-line bg-ink/70 p-3">
@@ -470,6 +493,21 @@ function PlayScreen() {
             </div>
           </section>
         </div>
+      )}
+      {tutorialStep !== null && tutorialStep >= 2 && tutorialStep < TUTORIAL_STEPS.length - 1 && !inventoryOpen && !tradeOpen && !empireOpen && (
+        <section className="tutorial-coach" role="status" aria-live="polite">
+          <div className="tutorial-coach-head"><SwitchPortrait size={34} /><div><strong>SWITCH · LIVE TRAINING</strong><small>{tutorialStep + 1} / {TUTORIAL_STEPS.length}</small></div></div>
+          <h2>{TUTORIAL_STEPS[tutorialStep].title}</h2>
+          <p>{TUTORIAL_STEPS[tutorialStep].body}</p>
+          <div className="tutorial-coach-actions">
+            <button type="button" className={btnGhost} onClick={finishTutorial}>Skip tutorial</button>
+            {tutorialStep === 2 && <button type="button" className={btnGold} onClick={() => setInventoryOpen(true)}>Open inventory</button>}
+            {tutorialStep === 3 && <button type="button" className={btnGold} onClick={() => { useRazor.getState().select(cityMapOf(game).locationId); setTradeOpen(true); }}>Open regional market</button>}
+            {tutorialStep === 4 && <span>Tap a different block on the map</span>}
+            {tutorialStep === 5 && <span>Use Travel here below the map</span>}
+            {tutorialStep === 6 && <button type="button" className={btnGold} onClick={() => setEmpireOpen(true)}>Open Territory Manager</button>}
+          </div>
+        </section>
       )}
       {!switchMuted && tutorialStep === null && !switchOpen && game.week > 1 && switchDismissedWeek !== game.week && (
         <button type="button" className="fixed bottom-20 right-3 z-[35] max-w-[220px] rounded-xl border border-gold bg-panel px-3 py-2 text-left text-sm text-paper shadow-xl" onClick={() => { setSwitchOpen(true); setSwitchDismissedWeek(game.week); }} aria-label="Read Switch's advice">

@@ -403,3 +403,19 @@
 .inventory-market-summary button small{font-size:10px;color:#aac2bd}
 .market-product{scroll-margin-top:12px}
 @media(max-width:440px){.inventory-grid{grid-template-columns:1fr}.inventory-header{padding:13px 16px}.inventory-content{padding:12px 16px}.inventory-totals strong{font-size:18px}.inventory-item{padding:12px}}
+
+/* Switch's interactive coach stays out of the way of the game's touch controls. */
+.tutorial-coach {
+  position: fixed; z-index: 72; top: calc(var(--safe-area-inset-top, env(safe-area-inset-top, 0px)) + 115px);
+  left: 10px; right: 10px; width: min(100% - 20px, 440px); margin: 0 auto;
+  padding: 12px; border: 1px solid #be9959; border-radius: 14px;
+  color: #f2e5c8; background: #12242dec; box-shadow: 0 8px 34px #000b;
+}
+.tutorial-coach-head { display: flex; align-items: center; gap: 10px; font-size: 11px; color: #e0b15a; }
+.tutorial-coach-head small { display: block; font-size: 9px; color: #adbec0; }
+.tutorial-coach h2 { margin-top: 5px; font-size: 16px; font-weight: 750; }
+.tutorial-coach p { margin-top: 3px; font-size: 11px; line-height: 1.35; }
+.tutorial-coach-actions { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin-top: 8px; }
+.tutorial-coach-actions button { min-height: 38px; font-size: 11px; padding: 6px 10px; }
+.tutorial-coach-actions span { font-size: 10px; color: #e8c784; }
+@media (max-height: 600px) { .tutorial-coach { top: calc(var(--safe-area-inset-top, env(safe-area-inset-top, 0px)) + 80px); } }
