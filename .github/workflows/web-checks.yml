@@ -1,5 +1,7 @@
 name: Check city map and game build
 on:
+  push:
+    branches: [development/v2-0-audit-completion]
   pull_request:
     branches: [main, feature/city-operations-map]
   workflow_dispatch:
@@ -15,6 +17,7 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npx playwright install --with-deps chromium
+      - run: node tests/tutorial-check.mjs
       - run: node tests/layout-check.mjs
       - run: node tests/contacts-check.mjs
       - run: node tests/region-market-check.mjs

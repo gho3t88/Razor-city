@@ -1,6 +1,7 @@
 package com.hollowdocksgames.razorcity;
 
 import android.os.Bundle;
+import androidx.activity.EdgeToEdge;
 import java.util.concurrent.atomic.AtomicBoolean;
 import com.getcapacitor.BridgeActivity;
 import com.google.android.gms.ads.MobileAds;
@@ -13,6 +14,8 @@ public class MainActivity extends BridgeActivity {
     @Override public void onCreate(Bundle savedInstanceState) {
         registerPlugin(TipBillingPlugin.class);
         registerPlugin(AdsPlugin.class);
+        // Modern Android 15+ window policy without deprecated status/nav bar color calls.
+        EdgeToEdge.enable(this);
         super.onCreate(savedInstanceState);
         ConsentInformation consentInformation = UserMessagingPlatform.getConsentInformation(this);
         ConsentRequestParameters params = new ConsentRequestParameters.Builder().build();
