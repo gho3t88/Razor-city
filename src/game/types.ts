@@ -93,6 +93,7 @@ export interface WeekReport {
 }
 
 export interface GameState {
+  wounded?: { count: number; sinceWeek: number };
   empire?: import("./empire").Empire;
   regionEvents?: { week: number; events: Record<string, import("./world-events").RegionEvent | null> };
   fightScene?: import("./fight-scene").FightScene;
