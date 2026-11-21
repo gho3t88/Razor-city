@@ -919,11 +919,12 @@ function SummarySheet() {
           <p className="mt-3 text-sm text-mute">Alive crews: {aliveGangs(game).length}. Your blocks: {game.districts.filter((d) => d.owner === "player").length}.</p>
         </div>
         <div className="border-t border-line p-3">
-          <button type="button" className={`${btnGold} w-full font-display text-lg tracking-wide`} onClick={async () => {
-            if (game.week > 1 && game.week % 3 === 0) await showInterstitial();
+          <button type="button" className={`${btnGold} w-full font-display text-lg tracking-wide`} onClick={() => {
+            // Never block the next week on an ad SDK that may fail to resolve.
             nextWeek();
+            if (game.week > 1 && game.week % 3 === 0) void showInterstitial();
           }}>
-            Begin week {game.week}
+            Continue · begin week {game.week}
           </button>
         </div>
       </article>
