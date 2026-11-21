@@ -240,6 +240,24 @@ const TUTORIAL_STEPS = [
   { title: "Ready to run the city?", body: "Close week when your moves are done. You'll get a report before the next week begins. Make sure your deals and defenses are ready.", tip: "That's your tour, boss. Now give this city something to talk about.", face: "🔥" },
 ] as const;
 
+function switchAdvice(game: GameState): { title: string; message: string } {
+  const stock = Object.values(game.stash).reduce((sum, n) => sum + n, 0);
+  if (game.wounded?.count) return { title: "Your people need help", message: `Boss, we've got ${game.wounded.count} wounded. Get them patched up before the next week.` };
+  if (game.heat >= 65) return { title: "The heat is rising", message: "Cops are sniffing around. Keep your head down and watch that heat meter." };
+  if (stock === 0) return { title: "Empty shelves", message: "We're out of stock, boss. Hit Market before you promise anyone a delivery." };
+  if (game.cash < 1000) return { title: "Cash is tight", message: "Money's looking thin. Check Inventory for stock you can sell locally." };
+  const region = game.districts.find(d => d.id === cityMapOf(game).locationId);
+  if (region) {
+    const quotes = regionMarket(game, region.id).products;
+    const best = (Object.keys(game.stash) as ProductId[])
+      .filter(p => game.stash[p] > 0 && quotes[p].buyers > 0)
+      .sort((a,b) => quotes[b].sell * Math.min(game.stash[b],quotes[b].buyers) - quotes[a].sell * Math.min(game.stash[a],quotes[a].buyers))[0];
+    if (best) return { title: "A local opportunity", message: `You've got ${game.stash[best]} ${PRODUCTS[best].name} on hand. Buyers here will take up to ${quotes[best].buyers} at ${money(quotes[best].sell)} each. Check the market before prices shift.` };
+  }
+  if (game.ap === 0) return { title: "That's a wrap", message: "No moves left this week. Check your crew and inventory, then close the week when you're ready." };
+  return { title: "Keep building", message: "Look over your territory and crew before making your next move. The city's not going anywhere." };
+}
+
 function PlayScreen() {
   const game = useRazor((s) => s.game);
   const modal = useRazor((s) => s.modal);
@@ -259,6 +277,18 @@ function PlayScreen() {
   const [tradeOpen, setTradeOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [tutorialStep, setTutorialStep] = useState<number | null>(null);
+  const [switchOpen, setSwitchOpen] = useState(false);
+  const [switchMuted, setSwitchMuted] = useState(() => { try { return window.localStorage.getItem("razor-switch-muted") === "yes"; } catch { return false; } });
+  const [switchDismissedWeek, setSwitchDismissedWeek] = useState<number | null>(null);
+  const switchTip = game ? switchAdvice(game) : null;
+  const toggleSwitch = () => {
+    setSwitchMuted(value => {
+      const next = !value;
+      try { window.localStorage.setItem("razor-switch-muted", next ? "yes" : "no"); } catch { /* Optional preference. */ }
+      return next;
+    });
+  };
+
   const tutorialKey = game ? `razor-tutorial-${game.seed}-${game.boss}-${game.crew}` : "";
   useEffect(() => {
     if (!game || game.week !== 1 || game.phase !== "play") return;
@@ -283,6 +313,7 @@ function PlayScreen() {
   backHandler.current = () => {
     if (billingBusy) return; // Never interrupt a Google Play purchase.
     if (tutorialStep !== null) { finishTutorial(); return; }
+    if (switchOpen) { setSwitchOpen(false); return; }
     if (exitPromptOpen) { setExitPromptOpen(false); return; }
     // These popups require a choice; a hardware Back press must not discard it.
     if (game?.encounters?.pending || (game && combatOf(game).ambush)) return;
@@ -384,6 +415,7 @@ function PlayScreen() {
         <button type="button" className="combat-opening mt-4" onClick={() => { setSettingsOpen(false); setCombatOpen(true); }}>Black Market & Training</button>
         <button type="button" className="combat-opening" onClick={()=>{setSettingsOpen(false);setEmpireOpen(true);}}>Businesses & Crew</button>
         <button type="button" className="combat-opening" onClick={() => { setSettingsOpen(false); setTutorialStep(0); }}>Replay beginning tutorial</button>
+        <button type="button" className="combat-opening" onClick={toggleSwitch}>{switchMuted ? "Enable Switch advice" : "Mute Switch advice"}</button>
         <div className="my-4"><TipSupport /></div>
         <button type="button" className={btnGhost} onClick={() => { void showPrivacyOptions(); }}>Privacy choices</button>
       </Sheet>}
@@ -419,6 +451,25 @@ function PlayScreen() {
                 {tutorialStep > 0 && <button type="button" className={btnGhost} onClick={() => setTutorialStep(s => s === null ? null : Math.max(0, s - 1))}>Back</button>}
                 <button type="button" className={btnGold} onClick={() => tutorialStep === TUTORIAL_STEPS.length - 1 ? finishTutorial() : setTutorialStep(s => s === null ? null : s + 1)}>{tutorialStep === TUTORIAL_STEPS.length - 1 ? "Start playing" : "Next"}</button>
               </div>
+            </div>
+          </section>
+        </div>
+      )}
+      {!switchMuted && tutorialStep === null && !switchOpen && game.week > 1 && switchDismissedWeek !== game.week && (
+        <button type="button" className="fixed bottom-20 right-3 z-[35] max-w-[220px] rounded-xl border border-gold bg-panel px-3 py-2 text-left text-sm text-paper shadow-xl" onClick={() => { setSwitchOpen(true); setSwitchDismissedWeek(game.week); }} aria-label="Read Switch's advice">
+          <strong className="block text-gold">😎 Switch has a tip</strong><span className="text-xs text-mute">{switchTip?.title} · Tap to read</span>
+        </button>
+      )}
+      {!switchMuted && tutorialStep === null && <button type="button" className="fixed bottom-20 left-3 z-[34] rounded-full border border-gold bg-panel px-3 py-2 text-xs text-gold shadow-xl" onClick={() => { setSwitchOpen(true); setSwitchDismissedWeek(game.week); }}>😎 Switch</button>}
+      {switchOpen && switchTip && (
+        <div className="fixed inset-0 z-[115] flex items-center justify-center bg-ink/85 p-4">
+          <section role="dialog" aria-modal="true" aria-label="Advice from Switch" className="w-full max-w-md rounded-xl border border-gold bg-panel p-5">
+            <p className="text-lg font-display text-gold">😎 SWITCH · STREET INTEL</p>
+            <h2 className="mt-2 text-xl font-semibold text-paper">{switchTip.title}</h2>
+            <p className="mt-3 text-sm leading-relaxed text-paper">{switchTip.message}</p>
+            <div className="mt-5 flex flex-wrap justify-between gap-2">
+              <button type="button" className={btnGhost} onClick={() => { toggleSwitch(); setSwitchOpen(false); }}>Mute advice</button>
+              <button type="button" className={btnGold} onClick={() => setSwitchOpen(false)}>Got it, Switch</button>
             </div>
           </section>
         </div>
