@@ -1,11 +1,17 @@
 import assert from "node:assert/strict";
 import { createGame, endWeek, quoteDistrict } from "../src/game/logic";
-import { regionMarket, refreshRegionMarkets, tradeRegion, visitRegionMarket } from "../src/game/region-economy";
+import { marketDemandVsSupplyPercent, regionMarket, refreshRegionMarkets, tradeRegion, visitRegionMarket } from "../src/game/region-economy";
 import { completeCityOrder, issueCityOrder } from "../src/game/city-map";
 import { PRODUCT_IDS } from "../src/game/content";
 import type { GameState } from "../src/game/types";
 import type { Result } from "../src/game/logic";
 const fresh = (seed = 42) => createGame({ boss: "Test", crew: "Test", difficulty: "street", seed });
+assert.equal(marketDemandVsSupplyPercent({ buyers: 96, supply: 64 }), 150, "96 buyers and 64 units of supply is 150%, not an unrelated demand strength score");
+assert.equal(marketDemandVsSupplyPercent({ buyers: 0, supply: 64 }), 0);
+assert.equal(marketDemandVsSupplyPercent({ buyers: 96, supply: 0 }), null, "No stock must not divide by zero");
+assert.equal(marketDemandVsSupplyPercent({ buyers: 0, supply: 0 }), 0);
+assert.equal(marketDemandVsSupplyPercent({ buyers: 64, supply: 64 }), 100);
+console.log("PASS Buyer demand vs local supply reflects actual quantities including shortages and zero stock.");
 const state = (r: Result | null) => { assert.ok(r?.ok); return r.state; };
 let g = fresh();
 const profiles = new Set(g.districts.map(d => JSON.stringify(regionMarket(g, d.id).products)));
