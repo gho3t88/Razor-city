@@ -285,7 +285,8 @@
 .market-location button { min-height: 44px; color: #e0b15a; text-decoration: underline; }
 .market-help { font-size: 11px; line-height: 1.5; color: #a8b9bd; margin: 9px 0; }
 .market-product { padding: 14px; background: #0b1a22; border: 1px solid #38545e; border-radius: 12px; margin-top: 12px; }
-.market-product-heading { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.market-product-heading { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.market-product-heading > span { text-align: right; max-width: 62%; line-height: 1.4; }
 .market-product-heading h3 { font-size: 19px; font-weight: 700; }.market-product-heading > span { font-size: 12px; color: #a7b9bb; }
 .market-product-heading .market-up { color: #8fdaae; }.market-product-heading .market-down { color: #ef9c8e; }
 .market-price-grid { display: grid; grid-template-columns: 1fr 1fr .75fr; gap: 10px; margin: 14px 0 10px; }
