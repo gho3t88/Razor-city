@@ -2,7 +2,7 @@ import { regionEvent } from "@/game/world-events";
 import { useEffect, useRef, useState } from "react";
 import { PRODUCT_IDS, PRODUCTS } from "@/game/content";
 import { money } from "@/game/logic";
-import { regionMarket } from "@/game/region-economy";
+import { marketDemandVsSupplyPercent, regionMarket } from "@/game/region-economy";
 import { cityMapOf } from "@/game/city-map";
 import { useRazor } from "@/game/store";
 import type { GameState, ProductId } from "@/game/types";
@@ -14,7 +14,9 @@ export function RegionMarket({ game, close, initialProduct = null }: { game: Gam
   const travel = useRazor(s => s.travel);
   const select = useRazor(s => s.select);
   const toast = useRazor(s => s.toast);
-  const [quantities, setQuantities] = useState<Record<ProductId, number>>({ dust: 10, velvet: 10, ice: 10, grow: 10 });
+  const [quantities, setQuantities] = useState<Record<ProductId, number>>(() => Object.fromEntries(
+    PRODUCT_IDS.map(product => [product, Math.min(10, Math.max(0, game.stash[product] ?? 0))])
+  ) as Record<ProductId, number>);
   const [compare, setCompare] = useState(false);
   const [confirmation, setConfirmation] = useState<{ region: string; product: ProductId; quantity: number; side: "buy" | "sell"; unitPrice: number } | null>(null);
   const dialog = useRef<HTMLElement>(null);
@@ -47,15 +49,17 @@ export function RegionMarket({ game, close, initialProduct = null }: { game: Gam
       <div className="inventory-market-summary"><strong>YOUR INVENTORY</strong><div>{PRODUCT_IDS.map(product => <button key={product} type="button" onClick={() => productRefs.current[product]?.scrollIntoView({ block: "start", behavior: "smooth" })}><span>{PRODUCTS[product].name}</span><b>{game.stash[product] ?? 0} units</b><small>{money((game.stash[product] ?? 0) * local.products[product].sell)} est.</small></button>)}</div></div>
       <div className="market-products">{PRODUCT_IDS.map(product => {
         const q = local.products[product]; const quantity = quantities[product];
-        const trend = Math.round((q.sell / q.previousSell - 1) * 100);
+        const trend = Number.isFinite(q.previousSell) && q.previousSell > 0 ? Math.round((q.sell / q.previousSell - 1) * 100) : null;
+        const demandVsSupply = marketDemandVsSupplyPercent(q);
         const canSell = Math.min(game.stash[product], q.buyers);
         const canBuy = Math.max(0, Math.min(q.supply, Math.floor(game.cash / q.buy)));
         return <article key={product} ref={node => { productRefs.current[product] = node; }} className="market-product">
-          <div className="market-product-heading"><h3>{PRODUCTS[product].name}</h3><span className={trend > 0 ? "market-up" : trend < 0 ? "market-down" : ""}>{trend > 0 ? "▲ +" : trend < 0 ? "▼ " : "— "}{trend}%</span></div>
-          <div className="market-price-grid"><div><span>SELL / UNIT</span><strong>{money(q.sell)}</strong></div><div><span>BUY / UNIT</span><strong>{money(q.buy)}</strong></div><div><span>DEMAND</span><strong>{q.demand}%</strong></div></div>
+          <div className="market-product-heading"><h3>{PRODUCTS[product].name}</h3><span className={trend !== null && trend > 0 ? "market-up" : trend !== null && trend < 0 ? "market-down" : ""}>Sell price change vs previous quote: {trend === null ? "No previous quote" : trend > 0 ? `▲ +${trend}%` : trend < 0 ? `▼ ${trend}%` : "0% (no change)"}</span></div>
+          <div className="market-price-grid"><div><span>SELL / UNIT</span><strong>{money(q.sell)}</strong></div><div><span>BUY / UNIT</span><strong>{money(q.buy)}</strong></div><div><span>DEMAND VS SUPPLY</span><strong>{demandVsSupply === null ? "No stock" : `${demandVsSupply}%`}</strong></div></div>
+          <p className="market-help">Demand vs supply = buyers wanting units ÷ local stock. Over 100% means buyers outnumber local supply.</p>
           <div className="market-stock"><span>Buyers want {q.buyers}</span><span>Local stock {q.supply}</span><span>You hold {game.stash[product]}</span><span>Affordable: {canBuy} units ({money(canBuy * q.buy)})</span></div>
-          <div className="market-trade-controls"><label>Units<input aria-label={`${PRODUCTS[product].name} units`} type="number" min="1" max="9999" step="1" value={quantity} onChange={e => setQuantities(v => ({ ...v, [product]: Math.min(9999, Math.max(1, Math.floor(Number(e.target.value) || 1))) }))} /></label><button type="button" onClick={() => setQuantities(v => ({ ...v, [product]: Math.max(1, canSell) }))}>Max sell</button><button type="button" disabled={canBuy === 0} onClick={() => setQuantities(v => ({ ...v, [product]: canBuy }))}>Max buy · {canBuy} ({money(canBuy * q.buy)})</button></div>
-          <div className="market-trade-buttons"><button type="button" className="market-sell" disabled={!present || busy || quantity > canSell} onClick={() => setConfirmation({ region: selected.id, product, quantity, side: "sell", unitPrice: q.sell })}>Sell {quantity} · {money(quantity * q.sell)}</button><button type="button" disabled={!present || busy || canBuy === 0 || quantity > canBuy} onClick={() => setConfirmation({ region: selected.id, product, quantity, side: "buy", unitPrice: q.buy })}>Buy {quantity} · {money(quantity * q.buy)}</button></div>
+          <div className="market-trade-controls"><label>Units<input aria-label={`${PRODUCTS[product].name} units`} type="number" min="0" max="9999" step="1" value={quantity} onChange={e => setQuantities(v => ({ ...v, [product]: Math.min(9999, Math.max(0, Math.floor(Number(e.target.value) || 0))) }))} /></label><button type="button" onClick={() => setQuantities(v => ({ ...v, [product]: Math.max(0, canSell) }))}>Max sell</button><button type="button" disabled={canBuy === 0} onClick={() => setQuantities(v => ({ ...v, [product]: canBuy }))}>Max buy · {canBuy} ({money(canBuy * q.buy)})</button></div>
+          <div className="market-trade-buttons"><button type="button" className="market-sell" disabled={!present || busy || quantity < 1 || quantity > canSell} onClick={() => setConfirmation({ region: selected.id, product, quantity, side: "sell", unitPrice: q.sell })}>Sell {quantity} · {money(quantity * q.sell)}</button><button type="button" disabled={!present || busy || canBuy === 0 || quantity < 1 || quantity > canBuy} onClick={() => setConfirmation({ region: selected.id, product, quantity, side: "buy", unitPrice: q.buy })}>Buy {quantity} · {money(quantity * q.buy)}</button></div>
           {present && quantity > q.buyers && <p className="market-help">Local buyers cannot take that many this week.</p>}
           {compare && <div className="market-comparison"><p>BEST SELL PRICES · {PRODUCTS[product].name}</p>{[...game.districts].sort((a, b) => regionMarket(game, b.id).products[product].sell - regionMarket(game, a.id).products[product].sell).slice(0, 4).map(d => {
             const quote = regionMarket(game, d.id).products[product];
