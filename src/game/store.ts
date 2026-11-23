@@ -13,6 +13,7 @@ import type { Result } from "@/game/logic";
 import { cityMapOf, completeCityOrder, issueCityOrder } from "@/game/city-map";
 
 import { refreshDistrictNames } from "@/game/content";
+import { applySponsorBonus, sponsorBonusClaimed } from "./ad-reward";
 
 const SAVE_KEY = "razor-city-save-v1";
 const LEGACY_KEY = "razor-city-legacy-v1";
@@ -308,18 +309,18 @@ export const useRazor = create<RazorStore>((set, get) => ({
 
   grantAdReward: () => {
     const game = get().game;
-    if (!game || game.phase !== "play" || combatOf(game).ambush || cityMapOf(game).order) return false;
-    const key = `razor-city-ad-reward-week-${game.week}`;
-    try {
-      if (localStorage.getItem(key) === "1") {
-        set({ toast: "Ad bonus already claimed this week." });
-        return false;
-      }
-      localStorage.setItem(key, "1");
-    } catch { /* continue without persistence guard */ }
-    const rewarded = { ...game, cash: game.cash + 1000 };
-    persist(rewarded);
-    set({ game: rewarded, saveMeta: metaOf(rewarded), toast: "$1,000 sponsor bonus added." });
+    if (!game) return false;
+    if (sponsorBonusClaimed(game)) {
+      set({ toast: "Ad bonus already claimed this week." });
+      return false;
+    }
+    const rewarded = applySponsorBonus(game);
+    if (!rewarded) {
+      set({ toast: "Finish the current action before claiming a sponsor bonus." });
+      return false;
+    }
+    const saved = persist(rewarded);
+    set({ game: rewarded, saveMeta: metaOf(rewarded), toast: saved ? "$1,000 sponsor bonus added." : "$1,000 added, but saving failed. Please check device storage." });
     playSound("tick");
     return true;
   },
