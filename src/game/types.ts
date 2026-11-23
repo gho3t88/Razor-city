@@ -97,6 +97,7 @@ export interface GameState {
   regionEvents?: { week: number; events: Record<string, import("./world-events").RegionEvent | null> };
   fightScene?: import("./fight-scene").FightScene;
   combat?: import("./combat").CombatProfile;
+  medical?: import("./medical").MedicalRecord;
   regionMarkets?: Record<string, import("./region-economy").RegionEconomy>;
   encounters?: import("./encounters").Encounters;
   cityMap?: CityMapState;
