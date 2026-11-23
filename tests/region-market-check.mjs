@@ -59,6 +59,30 @@ try {
   await page.getByText("● Your crew is here", { exact: true }).waitFor();
   assert.equal((await game()).regionMarkets.blackwater.visits, 1);
   await page.screenshot({ path: "test-results/region-market-arrival.png" });
+  // Tester #04: shortage percent must use remaining buyers/local stock, not hidden demand strength.
+  // A player with no stash should see 0 units rather than a phantom 10-unit sell default.
+  await page.evaluate(async () => {
+    const { useRazor } = await import("/src/game/store.ts");
+    const current = structuredClone(useRazor.getState().game);
+    current.stash.dust = 0;
+    current.cash = 100000;
+    current.regionMarkets.blackwater.products.dust.buyers = 96;
+    current.regionMarkets.blackwater.products.dust.supply = 64;
+    current.regionMarkets.blackwater.products.dust.previousSell = current.regionMarkets.blackwater.products.dust.sell;
+    useRazor.setState({ game: current });
+  });
+  await page.getByRole("button", { name: "Close regional market" }).click();
+  await page.getByRole("button", { name: "Trade", exact: true }).click();
+  const dustCard = page.locator(".market-product").first();
+  const dustUnits = dustCard.getByRole("spinbutton", { name: "Yellow Dust units" });
+  assert.equal(await dustUnits.inputValue(), "0", "No stash must not prefill 10 sell units");
+  assert.equal(await dustCard.getByText("150%", { exact: true }).count(), 1, "96 buyers / 64 local stock is 150%");
+  assert.ok((await dustCard.locator(".market-product-heading").innerText()).includes("Sell price change vs previous quote: 0% (no change)"));
+  assert.equal(await dustCard.locator(".market-sell").isDisabled(), true, "Zero units cannot be sold");
+  await dustCard.getByRole("button", { name: "Max sell" }).click();
+  assert.equal(await dustUnits.inputValue(), "0", "Max sell with no stash stays at zero");
+  await dustCard.getByRole("button", { name: /Max buy/ }).click();
+  assert.equal(await dustUnits.inputValue(), "64", "Buying remains possible despite zero owned inventory");
   assert.deepEqual(errors, []);
   console.log("PASS regional market phone layouts, direct sale totals, saved demand and quotes, comparisons, remote trade restrictions and fresh quotes after travel.");
 } finally { await browser.close(); await server.close(); }
