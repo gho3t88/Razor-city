@@ -8,6 +8,15 @@ export interface LocalQuote {
   sell: number; buy: number; previousSell: number;
   demand: number; buyers: number; supply: number;
 }
+// Display-only scarcity metric: percentage of local stock covered by outstanding buyers.
+// This is intentionally separate from the simulation's 0-100 demand-strength score.
+// Return null instead of dividing by zero when there is buyer demand but no stock.
+export function marketDemandVsSupplyPercent(q: Pick<LocalQuote, "buyers" | "supply">): number | null {
+  if (!Number.isFinite(q.buyers) || !Number.isFinite(q.supply) || q.buyers < 0 || q.supply < 0) return null;
+  if (q.supply === 0) return q.buyers === 0 ? 0 : null;
+  return Math.round(q.buyers / q.supply * 100);
+}
+
 export interface RegionEconomy {
   week: number; visits: number;
   headline: string; eventProduct: ProductId | null; event: "surge" | "slump" | "steady";
