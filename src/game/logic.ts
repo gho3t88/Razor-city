@@ -977,6 +977,7 @@ export function endWeek(state: GameState): Result {
   const rng = roller(next);
   const cashBefore = next.cash;
   const heatBefore = next.heat;
+  const inventoryBefore = { ...next.stash };
   const linesStart = next.logSeq;
   applyEmpireWeek(next);
   const acted = resolveRetaliations(next,rng,(gang,region)=>captureByGang(next,districtById(next,region)!,next.gangs[gang],rng,true),(won,strength,region,gang)=>{
@@ -1020,6 +1021,8 @@ export function endWeek(state: GameState): Result {
     heatBefore: Math.round(heatBefore),
     heatAfter: Math.round(next.heat),
     sold,
+    inventoryBefore,
+    inventoryAfter: { ...next.stash },
   };
   const win = victoryReason(next);
   const loss = defeatReason(next);
@@ -1186,6 +1189,7 @@ export function resolveChoice(state: GameState, optionId: string): Result {
     next.report.lines = [...extra, ...next.report.lines];
     next.report.cashAfter = next.cash;
     next.report.heatAfter = Math.round(next.heat);
+    next.report.inventoryAfter = { ...next.stash };
   }
   const win = victoryReason(next);
   const loss = defeatReason(next);

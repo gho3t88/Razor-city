@@ -23,6 +23,23 @@ try {
   await page.goto("http://127.0.0.1:5178");
   await page.getByRole("button", { name: "Take the docks", exact: true }).click();
   await page.getByRole("button", { name: "Skip tutorial", exact: true }).click();
+  // Day 6: opening/canceling delete must leave the exact save intact.
+  const saveKey = "razor-city-save-v1";
+  const readSave = () => page.evaluate(key => localStorage.getItem(key), saveKey);
+  await page.getByRole("button", { name: "Ledger", exact: true }).click();
+  await page.getByRole("button", { name: "Burn this save", exact: true }).click();
+  await page.getByRole("heading", { name: "DELETE SAVED GAME?" }).waitFor();
+  const saveBeforeCancel = await readSave();
+  assert.ok(saveBeforeCancel);
+  assert.equal(await page.locator("[data-game-background]").evaluate(el => el.inert), true);
+  await page.getByRole("button", { name: "Keep my save", exact: true }).click();
+  assert.equal(await readSave(), saveBeforeCancel);
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await page.getByRole("button", { name: "Close week", exact: true }).click();
+  await page.getByRole("alertdialog", { name: "Close week 1?" }).waitFor();
+  assert.equal(await page.locator("[data-game-background]").evaluate(el => el.inert), true);
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  assert.equal(await readSave(), saveBeforeCancel);
   // Tester #06: keyboard Escape and Android Back share the same handler.
   // Dismissing a sheet must not exit the game or discard saved progress.
   await page.getByRole("button", { name: "Market", exact: true }).click();

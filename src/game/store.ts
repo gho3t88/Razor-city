@@ -67,7 +67,7 @@ interface RazorStore {
   startNew: (opts: StartOpts) => void;
   continueGame: () => void;
   pauseGame: () => void;
-  abandon: () => void;
+  abandon: (confirmed?: boolean) => void;
   select: (id: string) => void;
   commit: (result: Result) => void;
   closeWeek: () => void;
@@ -237,8 +237,8 @@ export const useRazor = create<RazorStore>((set, get) => ({
     set({ screen: "start", game: null, hasSave: true, saveMeta: metaOf(game), modal: "none", toast: null });
   },
 
-  abandon: () => {
-    if (get().billingBusy) return;
+  abandon: (confirmed) => {
+    if (confirmed !== true || get().billingBusy || !get().game) return;
     if (!persist(null)) {
       set({ toast: "Could not delete the save. Your existing progress is still protected." });
       return;
@@ -304,7 +304,7 @@ export const useRazor = create<RazorStore>((set, get) => ({
 
   closeWeek: () => {
     const game = get().game;
-    if (!game) return;
+    if (!game || game.phase !== "play" || get().modal !== "none") return;
     if (combatOf(game).ambush) { set({ toast: "Resolve the ambush first." }); return; }
     if (game.encounters?.pending) { set({ toast: "Answer your contact first." }); return; }
     get().commit(endWeek(game));
@@ -318,7 +318,7 @@ export const useRazor = create<RazorStore>((set, get) => ({
 
   nextWeek: () => {
     const game = get().game;
-    if (!game) return;
+    if (!game || game.phase !== "summary") return;
     get().commit(continueReport(game));
   },
 

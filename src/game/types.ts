@@ -92,6 +92,9 @@ export interface WeekReport {
   heatBefore: number;
   heatAfter: number;
   sold: SaleLine[];
+  // Optional for saves made before detailed week reports were introduced.
+  inventoryBefore?: Record<ProductId, number>;
+  inventoryAfter?: Record<ProductId, number>;
 }
 
 export interface GameState {

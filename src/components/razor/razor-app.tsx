@@ -321,6 +321,7 @@ function PlayScreen() {
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exitPromptOpen, setExitPromptOpen] = useState(false);
+  const [closePromptOpen, setClosePromptOpen] = useState(false);
   const [shaking, setShaking] = useState(false);
   // The native Android Back listener is installed once. Its ref always points
   // at the latest open screen so an already-closed dialog cannot be reopened.
@@ -330,6 +331,8 @@ function PlayScreen() {
     if (tutorialStep !== null) { finishTutorial(); return; }
     if (switchOpen) { setSwitchOpen(false); return; }
     if (exitPromptOpen) { setExitPromptOpen(false); return; }
+    if (closePromptOpen) { setClosePromptOpen(false); return; }
+    if (game?.phase === "event" || game?.phase === "summary") return;
     // These popups require a choice; a hardware Back press must not discard it.
     if (game?.encounters?.pending || (game && combatOf(game).ambush)) return;
     if (watchingFight) { useRazor.getState().dismissFight(); return; }
@@ -385,13 +388,18 @@ function PlayScreen() {
     if (game?.cityMap?.order) setInspectorOpen(false);
   }, [game?.cityMap?.order]);
 
+  const forcedPopup = !!game && (game.phase !== "play" || !!combatOf(game).ambush || !!game.encounters?.pending || watchingFight);
+  const manualPopup = inspectorOpen || settingsOpen || contactsOpen || tradeOpen || inventoryOpen || combatOpen || empireOpen || modal !== "none";
+  const promptOpen = closePromptOpen || exitPromptOpen || tutorialStep !== null || switchOpen;
+  const backgroundLocked = forcedPopup || manualPopup || promptOpen || billingBusy;
+
   useEffect(() => {
-    if (inspectorOpen || settingsOpen || contactsOpen || tradeOpen || inventoryOpen || combatOpen || empireOpen || watchingFight || modal !== "none") return;
+    if (backgroundLocked) return;
     const tick = () => { if (document.visibilityState === "visible") tickContacts(); };
     tick();
     const timer = window.setInterval(tick, 1000);
     return () => window.clearInterval(timer);
-  }, [tickContacts, inspectorOpen, settingsOpen, contactsOpen, tradeOpen, inventoryOpen, combatOpen, empireOpen, watchingFight, modal]);
+  }, [tickContacts, backgroundLocked]);
 
   if (!game) return null;
   const selected = game.districts.find((d) => d.id === game.selectedId) ?? game.districts[0];
@@ -400,9 +408,10 @@ function PlayScreen() {
   const playing = game.phase === "play";
 
   return (
-    <main className={`game-viewport ${shaking ? "shake" : ""}`}>
+    <main className="game-viewport">
+      <div className={`flex min-h-0 flex-1 flex-col ${shaking ? "shake" : ""}`} inert={backgroundLocked} aria-hidden={backgroundLocked || undefined} data-game-background>
       <header className="game-topbar">
-        <div className="game-brand"><strong>RAZOR CITY</strong><span>WK {game.week} · {game.difficulty.toUpperCase()}</span></div>
+        <div className="game-brand"><strong>RAZOR CITY</strong><span>WK {game.phase === "summary" || game.phase === "event" ? (game.report?.closedWeek ?? game.week) : game.week} · {game.difficulty.toUpperCase()}</span></div>
         <button type="button" className="contacts-trigger" aria-label="Contacts and active deals" onClick={() => setContactsOpen(true)}>Deals {game.encounters?.deals.filter(d => d.status === "active").length || ""}</button>
         <button type="button" className="game-icon game-sound" aria-label={muted ? "Unmute" : "Mute"} onClick={toggleMute}>{muted ? <VolumeX size={19} /> : <Volume2 size={19} />}</button>
         <button type="button" className="game-icon game-settings" aria-label="Game options" onClick={() => setSettingsOpen(true)}>•••</button>
@@ -420,8 +429,10 @@ function PlayScreen() {
         <button type="button" disabled={!playing || busy} onClick={() => setModal("market")}><Store size={18} />Market</button>
         <button type="button" onClick={() => setInventoryOpen(true)}><Package size={18} />Inventory</button>
         <button type="button" onClick={() => setModal("ledger")}><BookOpen size={18} />Ledger</button>
-        <button type="button" className="game-close-week" disabled={!playing || busy} onClick={() => { if (window.confirm("Close this week and calculate results? You cannot undo this action.")) closeWeek(); }}>Close week</button>
+        <button type="button" className="game-close-week" disabled={!playing || busy} onClick={() => setClosePromptOpen(true)}>Close week</button>
       </nav>
+      </div>
+      <div className="contents" inert={forcedPopup || promptOpen || billingBusy}>
       {inspectorOpen && selected && <Sheet title="REGION MANAGEMENT" onClose={() => setInspectorOpen(false)}><Inspector game={game} district={selected} preview={preview} playing={playing && !busy} onEmpire={()=>{setInspectorOpen(false);setEmpireOpen(true);}} /></Sheet>}
       {settingsOpen && <Sheet title="GAME OPTIONS" onClose={() => setSettingsOpen(false)}>
         <p className="text-paper">{game.crew} · {game.boss}</p>
@@ -437,15 +448,18 @@ function PlayScreen() {
 
       {empireOpen&&<EmpirePanel game={game} close={()=>setEmpireOpen(false)} onDefend={region=>{useRazor.getState().select(region);setEmpireOpen(false);setInspectorOpen(true);}}/>}
       {combatOpen && <CombatCenter game={game} close={() => setCombatOpen(false)} />}
-      <AmbushPopup game={game} />
-      <FightScreen game={game}/>
-      {billingBusy && <div className="training-recovery" role="status"><p>{toast || "Saving training. Please wait…"}</p></div>}
       {tradeOpen && <RegionMarket game={game} close={() => { setTradeOpen(false); setInventoryProduct(null); }} initialProduct={inventoryProduct} />}
       {inventoryOpen && <InventoryPanel game={game} close={() => setInventoryOpen(false)} openMarket={product => { setInventoryProduct(product); setInventoryOpen(false); useRazor.getState().select(cityMapOf(game).locationId); setTradeOpen(true); }} />}
       {contactsOpen && <ContactsPanel game={game} close={() => setContactsOpen(false)} />}
-      <ContactPopup game={game} />
       {modal === "market" && playing ? <MarketSheet game={game} onGear={() => { setModal("none"); setCombatOpen(true); }} /> : null}
       {modal === "ledger" ? <LedgerSheet game={game} onEmpire={()=>{setModal("none");setEmpireOpen(true);}} /> : null}
+      </div>
+      <div className="contents" inert={billingBusy || promptOpen || game.phase !== "play"}>
+        <AmbushPopup game={game} />
+        <FightScreen game={game}/>
+        <ContactPopup game={game} />
+      </div>
+      {billingBusy && <div className="training-recovery" role="status"><p>{toast || "Saving training. Please wait…"}</p></div>}
       {game.phase === "event" && game.pending ? <EventSheet /> : null}
       {game.phase === "summary" && game.report ? <SummarySheet /> : null}
       {game.phase === "won" || game.phase === "lost" ? <EndingSheet /> : null}
@@ -470,12 +484,12 @@ function PlayScreen() {
           </section>
         </div>
       )}
-      {!switchMuted && tutorialStep === null && !switchOpen && game.week > 1 && switchDismissedWeek !== game.week && (
+      {!backgroundLocked && !switchMuted && game.week > 1 && switchDismissedWeek !== game.week && (
         <button type="button" className="fixed bottom-20 right-3 z-[35] max-w-[220px] rounded-xl border border-gold bg-panel px-3 py-2 text-left text-sm text-paper shadow-xl" onClick={() => { setSwitchOpen(true); setSwitchDismissedWeek(game.week); }} aria-label="Read Switch's advice">
           <strong className="block text-gold">Switch has a tip</strong><span className="text-xs text-mute">{switchTip?.title} · Tap to read</span>
         </button>
       )}
-      {!switchMuted && tutorialStep === null && <button type="button" className="fixed bottom-20 left-3 z-[34] flex items-center gap-2 rounded-full border border-gold bg-panel px-3 py-2 text-xs text-gold shadow-xl" onClick={() => { setSwitchOpen(true); setSwitchDismissedWeek(game.week); }}><SwitchPortrait size={24} /> Switch</button>}
+      {!backgroundLocked && !switchMuted && <button type="button" className="fixed bottom-20 left-3 z-[34] flex items-center gap-2 rounded-full border border-gold bg-panel px-3 py-2 text-xs text-gold shadow-xl" onClick={() => { setSwitchOpen(true); setSwitchDismissedWeek(game.week); }}><SwitchPortrait size={24} /> Switch</button>}
       {switchOpen && switchTip && (
         <div className="fixed inset-0 z-[115] flex items-center justify-center bg-ink/85 p-4">
           <section role="dialog" aria-modal="true" aria-label="Advice from Switch" className="w-full max-w-md rounded-xl border border-gold bg-panel p-5">
@@ -485,6 +499,18 @@ function PlayScreen() {
             <div className="mt-5 flex flex-wrap justify-between gap-2">
               <button type="button" className={btnGhost} onClick={() => { toggleSwitch(); setSwitchOpen(false); }}>Mute advice</button>
               <button type="button" className={btnGold} onClick={() => setSwitchOpen(false)}>Got it, Switch</button>
+            </div>
+          </section>
+        </div>
+      )}
+      {closePromptOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/90 p-3">
+          <section role="alertdialog" aria-modal="true" aria-labelledby="close-week-title" className="w-full max-w-md rounded-xl border border-gold bg-panel p-5">
+            <h2 id="close-week-title" className="font-display text-2xl text-paper">Close week {game.week}?</h2>
+            <p className="mt-2 text-sm text-mute">Calculate sales and other results, then review them before beginning the next week. Unused moves will be lost.</p>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button type="button" className={btnGhost} onClick={() => setClosePromptOpen(false)}>Cancel</button>
+              <button type="button" className={btnGold} onClick={() => { setClosePromptOpen(false); closeWeek(); }}>Confirm close week</button>
             </div>
           </section>
         </div>
@@ -859,7 +885,7 @@ function Portrait({ src, alt }: { src: string; alt: string }) {
 function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
     <div className="fixed inset-0 z-30 flex items-end justify-center bg-ink/80 p-3 sm:items-center">
-      <article className="flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-xl border border-line bg-panel">
+      <article role="dialog" aria-modal="true" aria-label={title} className="flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-xl border border-line bg-panel">
         <header className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
           <h2 className="font-display text-2xl tracking-wide">{title}</h2>
           <button type="button" aria-label="Close" onClick={onClose} className="inline-flex size-11 items-center justify-center rounded-md border border-line">
@@ -933,8 +959,21 @@ function MarketSheet({ game, onGear }: { game: GameState; onGear: () => void }) 
 function LedgerSheet({ game,onEmpire }: { game: GameState;onEmpire:()=>void }) {
   const setModal = useRazor((s) => s.setModal);
   const abandon = useRazor((s) => s.abandon);
+  const toast = useRazor((s) => s.toast);
+  const [confirmBurn, setConfirmBurn] = useState(false);
   const blocks = game.districts.filter((d) => d.owner === "player").length;
   const worth = netWorth(game);
+  if (confirmBurn) return (
+    <Sheet title="DELETE SAVED GAME?" onClose={() => setConfirmBurn(false)}>
+      <p role="alert" className="text-paper">This permanently deletes {game.boss} · {game.crew}, week {game.week}, including {money(game.cash)}, inventory and all progress. It cannot be undone.</p>
+      <p className="mt-2 text-sm text-mute">To leave without deleting, cancel and use Save &amp; main menu instead.</p>
+      {toast && <p role="status" className="mt-2 text-blood">{toast}</p>}
+      <div className="mt-5 grid grid-cols-2 gap-3">
+        <button type="button" className={btnGold} onClick={() => setConfirmBurn(false)}>Keep my save</button>
+        <button type="button" className={btnDanger} onClick={() => abandon(true)}>Permanently delete save</button>
+      </div>
+    </Sheet>
+  );
   return (
     <Sheet title="LEDGER" onClose={() => setModal("none")}>
       <button type="button" className="combat-opening" onClick={onEmpire}>Businesses, Crew & Rival Threats</button>
@@ -988,7 +1027,7 @@ function LedgerSheet({ game,onEmpire }: { game: GameState;onEmpire:()=>void }) {
       <p className="mt-4 text-sm text-mute">
         Earned {money(game.stats.earned)} · spent {money(game.stats.spent)} · sold {game.stats.productSold} · raids {game.stats.raids}
       </p>
-      <button type="button" className={`${btnDanger} mt-4 w-full`} onClick={abandon}>
+      <button type="button" className={`${btnDanger} mt-4 w-full`} onClick={() => setConfirmBurn(true)}>
         Burn this save
       </button>
     </Sheet>
@@ -1025,19 +1064,34 @@ function SummarySheet() {
   if (!game?.report) return null;
   const report = game.report;
   const delta = report.cashAfter - report.cashBefore;
+  const sales = report.sold.reduce((total, line) => total + line.cash, 0);
+  const inventoryAfter = report.inventoryAfter ?? game.stash;
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-ink/80 p-3 sm:items-center">
-      <article className="flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-xl border border-line bg-panel">
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-ink p-3 sm:items-center">
+      <article role="dialog" aria-modal="true" aria-label={`Week ${report.closedWeek} results`} className="flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-xl border border-line bg-panel">
         <div className="overflow-y-auto p-4">
           <p className="text-xs tracking-widest text-gold">WEEK {report.closedWeek} CLOSED</p>
           <h2 className="mt-1 font-display text-3xl leading-none">The books</h2>
+          <p className="mt-1 text-sm text-mute">Week {report.closedWeek} results · Week {game.week} begins when you continue.</p>
+          <p className="mt-3 text-xs text-mute">Net cash change at close</p>
           <p className={`mt-3 font-display text-2xl ${delta >= 0 ? "text-gold" : "text-blood"}`}>
             {delta >= 0 ? "+" : ""}
             {money(delta)}
           </p>
-          <p className="text-sm text-mute">
-            Cash {money(report.cashAfter)} · heat {report.heatBefore} to {report.heatAfter}
-          </p>
+          <p className="text-sm text-mute">Ending cash: {money(report.cashAfter)} · Corner sales: {money(sales)}</p>
+          <p className="text-sm text-mute">Heat: {report.heatBefore} → {report.heatAfter}</p>
+          <h3 className="mt-4 font-display text-lg text-paper">Inventory changes</h3>
+          {!report.inventoryBefore && <p className="text-xs text-mute">Opening inventory was not recorded in this older save.</p>}
+          <div className="mt-2 space-y-1 rounded-md border border-line p-2">
+            {(Object.keys(PRODUCTS) as ProductId[]).map(id => {
+              const before = report.inventoryBefore?.[id];
+              const after = inventoryAfter[id];
+              const sold = report.sold.filter(line => line.product === id).reduce((sum, line) => sum + line.units, 0);
+              const change = before === undefined ? null : after - before;
+              return <div key={id} className="flex flex-wrap justify-between gap-1 text-sm"><strong>{PRODUCTS[id].name}</strong><span>{sold} sold · {before === undefined ? `${after} remaining` : `${before} → ${after} (${change! > 0 ? "+" : ""}${change})`}</span></div>;
+            })}
+          </div>
+          <h3 className="mt-4 font-display text-lg text-paper">City activity</h3>
           <ul className="mt-3 space-y-1">
             {report.lines.map((line) => (
               <li key={line.id} className={`text-sm ${toneClass(line.tone)}`}>
@@ -1050,8 +1104,9 @@ function SummarySheet() {
         <div className="border-t border-line p-3">
           <button type="button" className={`${btnGold} w-full font-display text-lg tracking-wide`} onClick={() => {
             // Never block the next week on an ad SDK that may fail to resolve.
+            if (useRazor.getState().game?.phase !== "summary") return;
             nextWeek();
-            if (game.week > 1 && game.week % 3 === 0) void showInterstitial();
+            if (useRazor.getState().game?.phase === "play" && game.week > 1 && game.week % 3 === 0) void showInterstitial();
           }}>
             Continue · begin week {game.week}
           </button>
@@ -1063,7 +1118,7 @@ function SummarySheet() {
 
 function EndingSheet() {
   const game = useRazor((s) => s.game);
-  const abandon = useRazor((s) => s.abandon);
+  const pauseGame = useRazor((s) => s.pauseGame);
   if (!game) return null;
   const won = game.phase === "won";
   return (
@@ -1099,8 +1154,8 @@ function EndingSheet() {
             ))}
           </ul>
         ) : null}
-        <button type="button" className={`${btnGold} mt-4 w-full font-display text-lg tracking-wide`} onClick={abandon}>
-          New empire
+        <button type="button" className={`${btnGold} mt-4 w-full font-display text-lg tracking-wide`} onClick={pauseGame}>
+          Return to main menu
         </button>
       </article>
     </div>
