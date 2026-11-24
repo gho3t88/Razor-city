@@ -147,12 +147,14 @@ checks.push("Storage failure preserves unfinished orders until a successful retr
 
 // A failed delete must not make the game claim the save was abandoned.
 useRazor.setState({ game: fresh(), hasSave: true });
-failWrites = true;
 useRazor.getState().abandon();
+assert.ok(useRazor.getState().game, "Unconfirmed deletion must preserve the save");
+failWrites = true;
+useRazor.getState().abandon(true);
 assert.ok(useRazor.getState().game, "Failed deletion must keep the current game");
 assert.equal(useRazor.getState().hasSave, true);
 failWrites = false;
-useRazor.getState().abandon();
+useRazor.getState().abandon(true);
 assert.equal(useRazor.getState().game, null);
 assert.equal(useRazor.getState().hasSave, false);
 checks.push("Abandoning a game respects storage failures and only clears the save on success.");
