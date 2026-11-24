@@ -5,6 +5,7 @@ on:
   pull_request:
     branches: [main, feature/city-operations-map]
   workflow_dispatch:
+  workflow_call:
 jobs:
   check:
     runs-on: ubuntu-latest

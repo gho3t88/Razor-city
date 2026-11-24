@@ -7,6 +7,8 @@ on:
     branches: [main, development/post-testing-overhaul, development/v2-0-audit-completion]
     paths:
       - '.github/workflows/android-release-aab.yml'
+      - '.github/workflows/web-checks.yml'
+      - 'docs/TESTER-RELEASE-CHECKLIST.md'
       - 'android/**'
       - 'package.json'
       - 'capacitor.config.ts'
@@ -14,7 +16,11 @@ on:
       - 'tests/**'
 
 jobs:
+  release-regression-gate:
+    uses: ./.github/workflows/web-checks.yml
+
   build-release:
+    needs: release-regression-gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -17,6 +17,22 @@ Status legend: source checked = implementation inspected, not a runtime pass. Ad
 | Inventory and guided Switch tutorial | Existing tutorial and region-market checks; full tutorial completion and replay on upgraded save required. |
 | Combat report, recruiting, casualties, treatment, territory management, ambush, weapons, progression, regional prices, bulk deals, map movement | Existing feature implementations and test suites need full regression run and device smoke test; not certified here. |
 
+## Release policy (applies to every update)
+
+1. Add each new tester report and feature request to this checklist, with its regression test or manual verification steps, before creating a candidate. Retain previous entries.
+2. The signed internal-test AAB workflow must pass the full reusable web regression workflow before Android packaging/signing. A failed or cancelled gate blocks the signed artifact. This does not prevent debug APKs from being built for troubleshooting.
+3. Record the exact candidate commit, version name/code, successful CI and Android build links, and device-test evidence in the candidate record below (copy it for each release). Never carry a PASS forward from an earlier commit without re-running the applicable checks.
+4. Keep manual device checks separate from automated passes. Test bundles can be distributed for verification; do not promote to Google Play production until all checklist items pass, signing and version are verified, and tester feedback has been reviewed. No automatic production upload is configured.
+
+## Candidate record (copy per release)
+- Commit SHA:
+- Version name / code:
+- Web checks run URL:
+- Signed AAB run URL:
+- Android device / OS / fresh vs upgrade:
+- Tester feedback reviewed / open blockers:
+- Release decision: HOLD until all required checks below pass.
+
 ## Release gates
 - [ ] CI web checks green for exact candidate commit (unit tests, TypeScript build, Playwright).
 - [ ] Android build and signed release AAB green; verify version and package before upload.
