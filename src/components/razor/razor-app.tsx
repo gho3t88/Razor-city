@@ -7,7 +7,7 @@ import { RegionMarket } from "./region-market";
 import { InventoryPanel } from "./inventory-panel";
 import { regionMarket } from "@/game/region-economy";
 import { sponsorRewardForLevel } from "@/game/ad-rewards";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode, type PointerEvent } from "react";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import {
@@ -244,6 +244,65 @@ function SwitchPortrait({ size = 64 }: { size?: number }) {
   );
 }
 
+
+const SWITCH_POSITION_KEY = "razor-switch-position-v1";
+type SwitchPosition = { x: number; y: number };
+const clampUnit = (n: number) => Math.max(0, Math.min(1, n));
+function readSwitchPosition(): SwitchPosition {
+  try {
+    const p = JSON.parse(window.localStorage.getItem(SWITCH_POSITION_KEY) ?? "null");
+    if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) return { x: p.x < .5 ? 0 : 1, y: clampUnit(p.y) };
+  } catch { /* Optional preference. */ }
+  return { x: 1, y: .12 };
+}
+function SwitchLauncher({ onOpen, hasTip }: { onOpen: () => void; hasTip: boolean }) {
+  const [position, setPosition] = useState(readSwitchPosition);
+  const drag = useRef<{ id: number; x: number; y: number; start: SwitchPosition; moved: boolean } | null>(null);
+  const suppressClick = useRef(false);
+  const positionRef = useRef(position);
+  const update = (next: SwitchPosition) => { positionRef.current = next; setPosition(next); };
+  const save = (next: SwitchPosition) => {
+    update(next);
+    try { window.localStorage.setItem(SWITCH_POSITION_KEY, JSON.stringify(next)); } catch { /* Optional preference. */ }
+  };
+  const move = (e: PointerEvent<HTMLButtonElement>) => {
+    const d = drag.current;
+    if (!d || d.id !== e.pointerId) return;
+    const dx = e.clientX - d.x, dy = e.clientY - d.y;
+    if (!d.moved && Math.hypot(dx, dy) < 8) return;
+    d.moved = true;
+    suppressClick.current = true;
+    const area = e.currentTarget.parentElement!.getBoundingClientRect();
+    const button = e.currentTarget.getBoundingClientRect();
+    update({ x: clampUnit(d.start.x + dx / Math.max(1, area.width - button.width - 12)), y: clampUnit(d.start.y + dy / Math.max(1, area.height - button.height - 12)) });
+  };
+  const finish = (e: PointerEvent<HTMLButtonElement>, cancelled = false) => {
+    const d = drag.current;
+    if (!d || d.id !== e.pointerId) return;
+    drag.current = null;
+    if (cancelled) { update(d.start); suppressClick.current = true; }
+    else if (d.moved) save({ x: positionRef.current.x < .5 ? 0 : 1, y: positionRef.current.y });
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+  };
+  return <button type="button" className="switch-launcher" aria-label="Switch" title="Tap for advice; drag to move, or use arrow keys while focused"
+    style={{ left: `calc(6px + (100% - 112px) * ${position.x})`, top: `calc(6px + (100% - 56px) * ${position.y})` }}
+    onPointerDown={e => {
+      if (!e.isPrimary || e.button !== 0) return;
+      suppressClick.current = false;
+      drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, start: positionRef.current, moved: false };
+      e.currentTarget.setPointerCapture(e.pointerId);
+    }}
+    onPointerMove={move} onPointerUp={e => { move(e); finish(e); }} onPointerCancel={e => finish(e, true)} onLostPointerCapture={e => finish(e, true)}
+    onKeyDown={e => {
+      const p = positionRef.current;
+      const next = e.key === "ArrowLeft" ? { ...p, x: 0 } : e.key === "ArrowRight" ? { ...p, x: 1 } : e.key === "ArrowUp" ? { ...p, y: clampUnit(p.y - .15) } : e.key === "ArrowDown" ? { ...p, y: clampUnit(p.y + .15) } : null;
+      if (next) { e.preventDefault(); save(next); }
+    }}
+    onClick={e => { if (e.detail !== 0 && suppressClick.current) { suppressClick.current = false; return; } onOpen(); }}>
+    <SwitchPortrait size={23} /><span>Switch</span>{hasTip && <span className="switch-tip-dot" aria-hidden="true" />}
+  </button>;
+}
+
 const TUTORIAL_STEPS = [
   { title: "Welcome to Razor City", body: "Name's Switch. I know every shortcut in this city, and I'm your unofficial guide. First rule: keep your crew paid and your enemies guessing.", tip: "Nobody starts at the top. Not even you, boss." },
   { title: "Know your numbers", body: "See that bar up top? Cash keeps the lights on, respect opens doors, moves limit what you can do, and heat tells you how close the cops are.", tip: "When the heat climbs, I suddenly become hard to find." },
@@ -422,6 +481,7 @@ function PlayScreen() {
   const preview = previewSales(game);
   const busy = !!cityMapOf(game).order || !!combatOf(game).ambush;
   const playing = game.phase === "play";
+  const switchVisible = playing && !switchMuted && tutorialStep === null && !switchOpen && !inspectorOpen && !settingsOpen && !contactsOpen && !tradeOpen && !inventoryOpen && !combatOpen && !empireOpen && !exitPromptOpen && !billingBusy && !watchingFight && !combatOf(game).ambush && !game.encounters?.pending && modal === "none";
 
   return (
     <main className={`game-viewport ${shaking ? "shake" : ""}`}>
@@ -438,7 +498,7 @@ function PlayScreen() {
         <span><strong>{game.ap}/{game.maxAp}</strong><small>moves</small></span>
       </div>
       <section className="game-map-space" aria-label="City operations">
-        <CityMap game={game} onManage={() => setInspectorOpen(true)} onTrade={() => setTradeOpen(true)} onGear={() => setCombatOpen(true)} toast={toast} />
+        <CityMap game={game} onManage={() => setInspectorOpen(true)} onTrade={() => setTradeOpen(true)} onGear={() => setCombatOpen(true)} toast={toast} overlay={switchVisible ? <SwitchLauncher hasTip={game.week > 1 && switchDismissedWeek !== game.week} onOpen={() => { setSwitchOpen(true); setSwitchDismissedWeek(game.week); }} /> : null} />
       </section>
       <nav className="game-bottom" aria-label="Empire actions">
         <button type="button" disabled={!playing || busy} onClick={() => setModal("market")}><Store size={18} />Market</button>
@@ -509,12 +569,6 @@ function PlayScreen() {
           </div>
         </section>
       )}
-      {!switchMuted && tutorialStep === null && !switchOpen && game.week > 1 && switchDismissedWeek !== game.week && (
-        <button type="button" className="fixed bottom-20 right-3 z-[35] max-w-[220px] rounded-xl border border-gold bg-panel px-3 py-2 text-left text-sm text-paper shadow-xl" onClick={() => { setSwitchOpen(true); setSwitchDismissedWeek(game.week); }} aria-label="Read Switch's advice">
-          <strong className="block text-gold">Switch has a tip</strong><span className="text-xs text-mute">{switchTip?.title} · Tap to read</span>
-        </button>
-      )}
-      {!switchMuted && tutorialStep === null && <button type="button" className="fixed bottom-20 left-3 z-[34] flex items-center gap-2 rounded-full border border-gold bg-panel px-3 py-2 text-xs text-gold shadow-xl" onClick={() => { setSwitchOpen(true); setSwitchDismissedWeek(game.week); }}><SwitchPortrait size={24} /> Switch</button>}
       {switchOpen && switchTip && (
         <div className="fixed inset-0 z-[115] flex items-center justify-center bg-ink/85 p-4">
           <section role="dialog" aria-modal="true" aria-label="Advice from Switch" className="w-full max-w-md rounded-xl border border-gold bg-panel p-5">

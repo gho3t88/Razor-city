@@ -19,5 +19,33 @@ try {
   assert.ok(await page.getByRole("button", { name: "Open regional market" }).isVisible(), "Tutorial should wait for the actual sale");
   await page.getByRole("button", { name: "Skip tutorial" }).click();
   assert.equal(await page.getByRole("button", { name: "Open regional market" }).count(), 0);
-  console.log("PASS Switch walkthrough opens real inventory and trade UIs and waits for gameplay.");
+  const launcher = page.getByRole("button", { name: "Switch", exact: true });
+  await launcher.waitFor();
+  const area = page.locator(".city-map-window");
+  const before = await launcher.boundingBox(), bounds = await area.boundingBox();
+  await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + 12, bounds.y + bounds.height - 10, { steps: 12 });
+  await page.mouse.up();
+  const moved = await launcher.boundingBox();
+  assert.ok(moved.x < before.x - 50, "Switch must move to the other edge");
+  assert.equal(await page.getByRole("dialog", { name: "Advice from Switch" }).count(), 0, "Dragging must not open advice");
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("razor-switch-position-v1")));
+  assert.equal(saved.x, 0);
+  await page.reload();
+  await page.getByRole("button", { name: /Continue Hollow Kings/ }).click();
+  await launcher.waitFor();
+  for (const [width, height] of [[393,760],[320,568],[852,393]]) {
+    await page.setViewportSize({width,height});
+    const b = await launcher.boundingBox(), a = await area.boundingBox(), nav = await page.locator(".game-bottom").boundingBox();
+    assert.ok(b.x >= a.x && b.y >= a.y && b.x+b.width <= a.x+a.width+1 && b.y+b.height <= a.y+a.height+1, "Switch must stay in map bounds after resize");
+    assert.ok(b.y+b.height <= nav.y+1, "Switch must never cover bottom navigation");
+    assert.ok(Math.abs(b.x-a.x-6) < 2, "Saved left edge must persist");
+  }
+  await launcher.click();
+  await page.getByRole("dialog", { name: "Advice from Switch" }).waitFor();
+  await page.getByRole("button", { name: "Got it, Switch" }).click();
+  await page.getByRole("button", { name: "Market", exact: true }).click();
+  assert.equal(await launcher.count(), 0, "Switch must not cover market");
+  console.log("PASS live tutorial, Switch drag/snap, saved position, viewport safety, tap and market isolation.");
 } finally { await browser.close(); await server.close(); }

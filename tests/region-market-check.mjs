@@ -31,6 +31,14 @@ try {
   }
   await page.setViewportSize({ width: 393, height: 760 });
   const before = await game(); const price = before.regionMarkets.hollow.products.dust.sell;
+  assert.ok(await dialog.getByText("DEMAND INDEX", { exact: true }).count() === 4);
+  await page.evaluate(async () => { const { useRazor } = await import("/src/game/store.ts"); const g = structuredClone(useRazor.getState().game); g.stash.dust = 0; useRazor.setState({ game: g }); });
+  const sellInput = page.getByRole("spinbutton", { name: "Yellow Dust units", exact: true });
+  assert.equal(await sellInput.inputValue(), "0");
+  assert.ok(await sellInput.isDisabled());
+  assert.ok(await page.locator(".market-sell").first().isDisabled());
+  assert.ok(await page.getByRole("spinbutton", { name: "Yellow Dust buy units", exact: true }).isEnabled());
+  await page.evaluate(async old => { const { useRazor } = await import("/src/game/store.ts"); useRazor.setState({ game: old }); }, before);
   await page.getByRole("spinbutton", { name: "Yellow Dust units", exact: true }).fill("5");
   await page.locator(".market-product").first().locator(".market-sell").click();
   assert.equal((await game()).cash, before.cash, "Opening trade confirmation must not charge or credit cash");

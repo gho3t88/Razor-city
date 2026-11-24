@@ -2,7 +2,7 @@ import { regionEvent } from "@/game/world-events";
 import { combatOf, levelOf, weaponOf } from "@/game/combat";
 import { regionMarket } from "@/game/region-economy";
 import { PRODUCTS } from "@/game/content";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cityMapOf, crewPoint, waypointRoute } from "@/game/city-map";
 import { adjacentToPlayer, freeMuscle, hitOutlook, isGangId } from "@/game/logic";
 import { districtPoint, districtPolygon } from "@/game/city-geometry";
@@ -18,7 +18,7 @@ const districtTones = ["#4d9ba5", "#c18b63", "#a37acb", "#c55b98", "#6c91b0", "#
 const roofTones = ["#64888c", "#a08067", "#846c9b", "#97627e", "#617b93", "#a28b63", "#688b70", "#527f78", "#926b58", "#8b7b5a", "#507a8d", "#8c6065"];
 const control = "min-h-11 rounded-md border border-line px-3 py-2 text-sm disabled:opacity-40";
 
-export function CityMap({ game, onManage, onTrade, onGear, toast }: { game: GameState; onManage?: () => void; onTrade?: () => void; onGear?: () => void; toast?: string | null }) {
+export function CityMap({ game, onManage, onTrade, onGear, toast, overlay }: { game: GameState; onManage?: () => void; onTrade?: () => void; onGear?: () => void; toast?: string | null; overlay?: ReactNode }) {
   const scroll = useRef<HTMLDivElement>(null);
   const select = useRazor(s => s.select);
   const travel = useRazor(s => s.travel);
@@ -143,6 +143,7 @@ export function CityMap({ game, onManage, onTrade, onGear, toast }: { game: Game
         <button type="button" className={control} aria-label="Zoom out" disabled={zoom <= 1} onClick={() => adjustZoom(zoomRef.current - .35)}>−</button>
         <button type="button" className={control} aria-label="Zoom in" disabled={zoom >= 2.6} onClick={() => adjustZoom(zoomRef.current + .35)}>+</button>
       </div>
+      <div className="city-map-window">
       <div ref={scroll} className="city-scroll" tabIndex={0} aria-label="City map; pinch with two fingers or use the zoom buttons, then drag to explore streets">
         <svg className="city-svg" style={{ width: `${zoom * 100}%`, minWidth: `${zoom * 100}%` }} viewBox="0 0 660 620" aria-label="Razor City district map">
           <defs>
@@ -226,6 +227,8 @@ export function CityMap({ game, onManage, onTrade, onGear, toast }: { game: Game
             </g>}
           </g>
         </svg>
+      </div>
+      {overlay}
       </div>
       <div className="city-orders">
         <div className="city-selection"><div><p className="city-eyebrow" style={{ color: colors[selected.owner] }}>{owner}</p><h3>{selected.name}</h3></div><span>{busy ? "ORDER ACTIVE" : `DEF ${selected.defense}`}</span></div>
