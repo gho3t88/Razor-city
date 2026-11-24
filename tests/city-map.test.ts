@@ -4,6 +4,17 @@ import { createGame, hit } from "../src/game/logic";
 import { useRazor } from "../src/game/store";
 import type { GameState } from "../src/game/types";
 
+// Store actions now require durable persistence; provide a real in-memory Storage
+// contract instead of relying on Node's missing browser localStorage.
+const saved = new Map<string, string>();
+let failWrites = false;
+Object.assign(globalThis, { localStorage: {
+  getItem: (key: string) => saved.get(key) ?? null,
+  setItem: (key: string, value: string) => { if (failWrites) throw new Error("Storage full"); saved.set(key, String(value)); },
+  removeItem: (key: string) => { if (failWrites) throw new Error("Storage unavailable"); saved.delete(key); },
+  clear: () => saved.clear(),
+} });
+
 const fresh = () => createGame({ boss: "Test", crew: "Test crew", difficulty: "street", seed: 42 });
 const checks: string[] = [];
 
@@ -90,5 +101,74 @@ const completedAttack = useRazor.getState().game;
 useRazor.getState().tickCity();
 assert.equal(useRazor.getState().game, completedAttack);
 checks.push("Reopening completes overdue orders exactly once through the store/save pipeline.");
+
+// Regression: timed ambush fights must finish and clear the pending order exactly once.
+const ambushed = fresh();
+ambushed.crewCounts.muscle = 8;
+ambushed.combat = {
+  xp: 0, credits: 0, equipped: "fists", owned: ["fists"],
+  wins: 0, losses: 0, escapes: 0, surrenders: 0,
+  ambush: { origin: "hollow", destination: "iron", location: "iron", attackers: 2, triggerAt: 1100 },
+};
+ambushed.cityMap = {
+  locationId: "iron", report: "Fighting off the ambush",
+  order: { kind: "ambush", route: ["iron", "iron"], startedAt: 1000, arrivesAt: 1000, endsAt: 1200, soldiers: 8 },
+};
+ambushed.fightScene = {
+  id: "ambush-test", kind: "ambush", region: "iron", enemy: "Street attackers",
+  allies: 10, enemyPower: 2, playerPower: 10, weapon: "Bare Knuckles", level: 1,
+  startedAt: 1000, endsAt: 1200, status: "active", summary: "Fighting", dismissed: false,
+};
+assert.equal(completeCityOrder(ambushed, 1199), null);
+const resolvedAmbush = completeCityOrder(ambushed, 1200)!;
+assert.ok(resolvedAmbush.ok);
+assert.equal(resolvedAmbush.state.combat?.ambush, null);
+assert.notEqual(resolvedAmbush.state.cityMap?.order?.kind, "ambush");
+assert.notEqual(resolvedAmbush.state.fightScene?.status, "active");
+assert.ok(resolvedAmbush.state.fightScene?.outcome, "Completed ambush must include structured after-action rewards and losses");
+assert.equal(resolvedAmbush.state.fightScene!.outcome!.xp, (resolvedAmbush.state.combat?.xp ?? 0) - (ambushed.combat?.xp ?? 0));
+assert.equal(resolvedAmbush.state.fightScene!.outcome!.credits, (resolvedAmbush.state.combat?.credits ?? 0) - (ambushed.combat?.credits ?? 0));
+assert.equal(resolvedAmbush.state.fightScene!.outcome!.cash, resolvedAmbush.state.cash - ambushed.cash);
+assert.equal(resolvedAmbush.state.fightScene!.outcome!.dead + resolvedAmbush.state.fightScene!.outcome!.wounded, ambushed.crewCounts.muscle - resolvedAmbush.state.crewCounts.muscle);
+assert.notEqual(completeCityOrder(resolvedAmbush.state, 1201)?.state.cityMap?.order?.kind, "ambush");
+checks.push("Timed ambush fights resolve, clear their order, and close the fight report.");
+
+// Failed disk writes must not silently advance a completed order.
+const diskOrder = issueCityOrder(fresh(), ["blackwater"], 0, 1);
+assert.ok(diskOrder.ok);
+useRazor.setState({ game: diskOrder.state });
+failWrites = true;
+useRazor.getState().tickCity();
+assert.ok(useRazor.getState().game?.cityMap?.order, "Failed save must preserve the order for retry");
+failWrites = false;
+useRazor.getState().tickCity();
+assert.equal(useRazor.getState().game?.cityMap?.order, null);
+checks.push("Storage failure preserves unfinished orders until a successful retry.");
+
+// Every successful verified reward is credited and persisted, even in the same week.
+const rewardGame = fresh();
+useRazor.setState({ game: rewardGame, hasSave: true });
+assert.equal(useRazor.getState().grantAdReward(), true);
+assert.equal(useRazor.getState().grantAdReward(), true);
+assert.equal(useRazor.getState().game?.cash, rewardGame.cash + 2000);
+failWrites = true;
+assert.equal(useRazor.getState().grantAdReward(), false);
+assert.equal(useRazor.getState().game?.cash, rewardGame.cash + 2000);
+failWrites = false;
+checks.push("Repeat ad rewards credit the promised amount; failed persistence cannot credit cash.");
+
+// A failed delete must not make the game claim the save was abandoned.
+useRazor.setState({ game: fresh(), hasSave: true });
+useRazor.getState().abandon();
+assert.ok(useRazor.getState().game, "Unconfirmed deletion must preserve the save");
+failWrites = true;
+useRazor.getState().abandon(true);
+assert.ok(useRazor.getState().game, "Failed deletion must keep the current game");
+assert.equal(useRazor.getState().hasSave, true);
+failWrites = false;
+useRazor.getState().abandon(true);
+assert.equal(useRazor.getState().game, null);
+assert.equal(useRazor.getState().hasSave, false);
+checks.push("Abandoning a game respects storage failures and only clears the save on success.");
 
 console.log(checks.map(s => `PASS ${s}`).join("\n"));

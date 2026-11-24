@@ -8,6 +8,15 @@ export interface LocalQuote {
   sell: number; buy: number; previousSell: number;
   demand: number; buyers: number; supply: number;
 }
+// Display-only scarcity metric: percentage of local stock covered by outstanding buyers.
+// This is intentionally separate from the simulation's 0-100 demand-strength score.
+// Return null instead of dividing by zero when there is buyer demand but no stock.
+export function marketDemandVsSupplyPercent(q: Pick<LocalQuote, "buyers" | "supply">): number | null {
+  if (!Number.isFinite(q.buyers) || !Number.isFinite(q.supply) || q.buyers < 0 || q.supply < 0) return null;
+  if (q.supply === 0) return q.buyers === 0 ? 0 : null;
+  return Math.round(q.buyers / q.supply * 100);
+}
+
 export interface RegionEconomy {
   week: number; visits: number;
   headline: string; eventProduct: ProductId | null; event: "surge" | "slump" | "steady";
@@ -85,8 +94,13 @@ export function tradeRegion(state: GameState, region: string, product: ProductId
   if (location !== region) return { ok: false, error: "Travel to this region to trade here." };
   if (!state.districts.some(d => d.id === region) || !PRODUCT_IDS.includes(product) || !Number.isSafeInteger(quantity) || quantity < 1 || !["buy", "sell"].includes(side)) return { ok: false, error: "Choose a valid product and whole number of units." };
   const e = structuredClone(regionMarket(state, region)); const q = e.products[product];
+  // A malformed legacy quote must never mint money or allow negative inventory.
+  if (!Number.isSafeInteger(q.sell) || q.sell < 1 || !Number.isSafeInteger(q.buy) || q.buy <= q.sell ||
+      !Number.isSafeInteger(q.buyers) || q.buyers < 0 || !Number.isSafeInteger(q.supply) || q.supply < 0)
+    return { ok: false, error: "Market quote is invalid. Try reopening the region." };
   if (side === "sell" && (state.stash[product] < quantity || q.buyers < quantity)) return { ok: false, error: "Your stash or local buyer demand cannot fill that sale." };
   if (side === "buy" && (q.supply < quantity || state.cash < q.buy * quantity)) return { ok: false, error: "Not enough cash or local stock for that purchase." };
+  if (!Number.isSafeInteger(quantity * (side === "sell" ? q.sell : q.buy))) return { ok: false, error: "Trade total exceeds the safe transaction limit." };
   const s = structuredClone(state); const total = quantity * (side === "sell" ? q.sell : q.buy);
   if (side === "sell") {
     s.stash[product] -= quantity; s.cash += total; s.stats.earned += total; s.stats.productSold += quantity;

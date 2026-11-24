@@ -1,3 +1,4 @@
+import { applyCasualties, expireWounded } from "./medical";
 import { applyEmpireWeek, empireOf, hasThreat, medicalLosses, queueRetaliation, resolveRetaliations, specialistBonus } from "./empire";
 import { eventEffects, refreshRegionEvents, regionEvent } from "./world-events";
 import { finishFight } from "./fight-scene";
@@ -101,7 +102,7 @@ export function adjacentToPlayer(state: GameState, id: string): boolean {
 }
 
 export function playerDefense(d: District): number {
-  return 6 + d.stationMuscle * 7 + d.corners * 4 + Math.round(d.loyalty / 12);
+  return 6 + d.stationMuscle * 7 + d.corners * 4 + Math.round(d.loyalty / 12) + (d.cameras ?? 0) * 8 + (d.barracks ?? 0) * 6;
 }
 
 export function refreshDefense(state: GameState) {
@@ -238,6 +239,8 @@ function releaseCrew(state: GameState, d: District, muscleKeep: number, dealerKe
   state.crewCounts.dealers = Math.max(0, state.crewCounts.dealers - Math.max(0, dealerLoss));
   d.stationMuscle = 0;
   d.stationDealers = 0;
+  d.cameras = 0;
+  d.barracks = 0;
 }
 
 function giveBlockToPlayer(state: GameState, d: District, loyalty: number, muscle: number, dealers: number) {
@@ -247,6 +250,8 @@ function giveBlockToPlayer(state: GameState, d: District, loyalty: number, muscl
   d.focus = "auto";
   d.stationMuscle = 0;
   d.stationDealers = 0;
+  d.cameras = 0;
+  d.barracks = 0;
   clampStations(state);
   const fm = freeMuscle(state);
   const fd = freeDealers(state);
@@ -415,11 +420,10 @@ export function buy(state: GameState, product: ProductId, qty: number): Result {
   if (state.phase !== "play") return fail("The market is shut.");
   const next = clone(state);
   const price = next.prices[product].wholesale;
-  let n = Math.floor(qty);
-  if (n < 1) return fail("Buy at least one.");
+  const n = qty;
+  if (!Number.isSafeInteger(n) || n < 1) return fail("Choose a positive whole number of units.");
   const affordable = Math.floor(next.cash / price);
-  if (affordable < 1) return fail("Too broke for that.");
-  if (n > affordable) n = affordable;
+  if (n > affordable) return fail("Not enough cash for that quantity.");
   const cost = price * n;
   next.cash -= cost;
   next.stash[product] += n;
@@ -428,12 +432,17 @@ export function buy(state: GameState, product: ProductId, qty: number): Result {
   return { ok: true, state: next, fx: "cash" };
 }
 
+/** Barracks expand the active soldier roster; losing the block removes capacity. */
+export function soldierCapacity(state: GameState): number {
+  return 40 + state.districts.reduce((n, d) => n + (d.owner === "player" ? (d.barracks ?? 0) * 4 : 0), 0);
+}
+
 export function recruit(state: GameState, kind: "muscle" | "dealers"): Result {
   const next = clone(state);
   const ap = spendAp(next);
   if (ap) return fail(ap);
   if (kind === "muscle") {
-    if (next.crewCounts.muscle >= 40) return fail("No more muscle will take your money.");
+    if (next.crewCounts.muscle >= soldierCapacity(next)) return fail("Your barracks are full. Upgrade controlled territory to recruit more soldiers.");
     const cost = 700;
     if (next.cash < cost) return fail(`Hiring muscle costs ${money(cost)}.`);
     next.cash -= cost;
@@ -601,6 +610,7 @@ export function shake(state: GameState, id: string): Result {
 
 export function hit(state: GameState, id: string, commit: number): Result {
   const next = clone(state);
+  const priorXp = combatOf(next).xp, priorCredits = combatOf(next).credits, priorCash = next.cash;
   const d = districtById(next, id);
   if (!d || d.owner === "player") return fail("Fight for a rival or unclaimed block.");
   if (!adjacentToPlayer(next, id)) return fail("No approach from your blocks.");
@@ -617,7 +627,7 @@ export function hit(state: GameState, id: string, commit: number): Result {
   const def = d.defense;
   if (atk > def) {
     const losses = Math.min(send, medicalLosses(next, Math.max(1, Math.round(send * (0.1 + rng() * 0.16)))));
-    next.crewCounts.muscle = Math.max(0, next.crewCounts.muscle - losses);
+    const casualties = applyCasualties(next, losses);
     clampStations(next);
     const wasHome = d.id === gang?.home;
     if (gang) {
@@ -631,6 +641,8 @@ export function hit(state: GameState, id: string, commit: number): Result {
     d.focus = "auto";
     d.stationMuscle = 0;
     d.stationDealers = 0;
+    d.cameras = 0;
+    d.barracks = 0;
     clampStations(next);
     d.stationMuscle = Math.min(Math.max(0, send - losses), freeMuscle(next));
     next.heat = clamp(next.heat + 16, 0, 100);
@@ -638,20 +650,20 @@ export function hit(state: GameState, id: string, commit: number): Result {
     next.stats.blocksTaken += 1;
     const homeLine = wasHome ? " You took their house." : "";
     grantFightRewards(next, true, Math.max(1, Math.round(def / 6)));
-    pushLog(next, `${d.name} falls. Lost ${losses} muscle.${homeLine}`, "blood");
+    pushLog(next, `${d.name} falls. ${casualties.dead} dead, ${casualties.wounded} wounded.${homeLine}`, "blood");
     if(gang) queueRetaliation(next,gang.id,d.id);
-    finishFight(next,true,`Victory in ${d.name}. ${losses} soldier losses. The block belongs to you.`);
+    finishFight(next,true,`Victory in ${d.name}. ${casualties.dead} dead, ${casualties.wounded} wounded. The block belongs to you.`,{xp:combatOf(next).xp-priorXp,credits:combatOf(next).credits-priorCredits,cash:next.cash-priorCash,dead:casualties.dead,wounded:casualties.wounded,territoryCaptured:true});
     return finish(next, "hit");
   }
   const losses = Math.min(send, medicalLosses(next, Math.max(1, Math.round(send * (0.34 + rng() * 0.28)))));
-  next.crewCounts.muscle = Math.max(0, next.crewCounts.muscle - losses);
+  const casualties = applyCasualties(next, losses);
   clampStations(next);
   if (gang) { gang.relation = clamp(gang.relation - 14, -100, 80); gang.truceWeeks = 0; }
   next.heat = clamp(next.heat + 10, 0, 100);
   next.respect = clamp(next.respect - 2, 0, 100);
   grantFightRewards(next, false, Math.max(1, Math.round(def / 6)));
-  pushLog(next, `${gang?.name ?? "Local defenders"} hold ${d.name}. You lose ${losses} muscle.`, "blood");
-  finishFight(next,false,`Defeat in ${d.name}. ${losses} soldier losses. Your crew pulled back.`);
+  pushLog(next, `${gang?.name ?? "Local defenders"} hold ${d.name}. ${casualties.dead} dead, ${casualties.wounded} wounded.`, "blood");
+  finishFight(next,false,`Defeat in ${d.name}. ${casualties.dead} dead, ${casualties.wounded} wounded. Your crew pulled back.`,{xp:combatOf(next).xp-priorXp,credits:combatOf(next).credits-priorCredits,cash:next.cash-priorCash,dead:casualties.dead,wounded:casualties.wounded,territoryCaptured:false});
   return finish(next, "hit");
 }
 
@@ -710,6 +722,8 @@ function captureByGang(state: GameState, d: District, gang: Gang, rng: () => num
     other.relation = clamp(other.relation - 8, -100, 80);
   }
   d.owner = gang.id;
+  d.cameras = 0;
+  d.barracks = 0;
   d.corners = 1;
   d.loyalty = 0;
   d.stationMuscle = 0;
@@ -962,6 +976,7 @@ export function endWeek(state: GameState): Result {
   const rng = roller(next);
   const cashBefore = next.cash;
   const heatBefore = next.heat;
+  const inventoryBefore = { ...next.stash };
   const linesStart = next.logSeq;
   applyEmpireWeek(next);
   const acted = resolveRetaliations(next,rng,(gang,region)=>captureByGang(next,districtById(next,region)!,next.gangs[gang],rng,true),(won,strength,region,gang)=>{
@@ -1005,6 +1020,8 @@ export function endWeek(state: GameState): Result {
     heatBefore: Math.round(heatBefore),
     heatAfter: Math.round(next.heat),
     sold,
+    inventoryBefore,
+    inventoryAfter: { ...next.stash },
   };
   const win = victoryReason(next);
   const loss = defeatReason(next);
@@ -1171,6 +1188,7 @@ export function resolveChoice(state: GameState, optionId: string): Result {
     next.report.lines = [...extra, ...next.report.lines];
     next.report.cashAfter = next.cash;
     next.report.heatAfter = Math.round(next.heat);
+    next.report.inventoryAfter = { ...next.stash };
   }
   const win = victoryReason(next);
   const loss = defeatReason(next);
@@ -1193,6 +1211,7 @@ export function continueReport(state: GameState): Result {
   const next = clone(state);
   next.phase = "play";
   next.report = null;
+  expireWounded(next);
   return finish(next, "tick");
 }
 

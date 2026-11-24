@@ -1,14 +1,17 @@
+import { TREATMENT_COST } from "@/game/medical";
 import { EmpirePanel } from "./empire-panel";
 import { FightScreen } from "./fight-screen";
 import { CombatCenter, AmbushPopup } from "./combat-center";
 import { combatOf, levelOf, weaponOf } from "@/game/combat";
 import { RegionMarket } from "./region-market";
+import { InventoryPanel } from "./inventory-panel";
 import { regionMarket } from "@/game/region-economy";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import {
   BookOpen,
+  Package,
   Coins,
   Flame,
   Minus,
@@ -116,7 +119,7 @@ function StartScreen() {
   const [art, setArt] = useState(true);
 
   return (
-    <main className="relative min-h-dvh bg-ink">
+    <main className="relative min-h-dvh bg-ink start-screen-safe">
       {art ? (
         <img
           src="/art/hero.jpg"
@@ -141,9 +144,10 @@ function StartScreen() {
             <li>Three moves a week. Spend them to expand, hire, bribe, or hit a rival.</li>
             <li>Heat brings raids. Three raids end you. Eight blocks crown the city.</li>
           </ul>
+          {hasSave && saveMeta && <p className="mt-4 text-sm text-paper">Current save: {saveMeta.boss} · {saveMeta.crew} · Week {saveMeta.week} · {money(saveMeta.cash)}</p>}
           {legacy.runs > 0 ? (
             <p className="mt-4 text-sm text-gold">
-              Legacy: {legacy.wins} crown{legacy.wins === 1 ? "" : "s"}
+              Completed-run records: {legacy.wins} crown{legacy.wins === 1 ? "" : "s"}
               {legacy.bestWeek != null ? ` · fastest week ${legacy.bestWeek}` : ""} · best book {money(legacy.bestWorth)}
             </p>
           ) : null}
@@ -152,14 +156,15 @@ function StartScreen() {
           className="w-full max-w-md rounded-xl border border-line bg-panel/95 p-4"
           onSubmit={(e) => {
             e.preventDefault();
+            if (hasSave && !window.confirm("Start a new game? This will overwrite your existing saved progress and cannot be undone.")) return;
             startNew({ boss, crew, difficulty });
           }}
         >
-          <div className="mb-4 flex items-center gap-3">
+          <div className="mb-4 flex flex-wrap items-center gap-3">
             <img src="/art/reyes.jpg" alt="" className="size-14 rounded-md object-cover" />
             <div className="min-w-0 flex-1">
               <p className="font-display text-xl tracking-wide text-paper">OPEN THE BOOKS</p>
-              <p className="text-sm text-mute">Name the boss. Name the crew.</p>
+              <p className="text-sm text-mute">Default names are prefilled. Edit them to customize your save.</p>
             </div>
             <button
               type="button"
@@ -218,12 +223,53 @@ function StartScreen() {
               {saveMeta.phase === "won" ? " · crowned" : saveMeta.phase === "lost" ? " · finished" : ""}
             </button>
           ) : null}
-          {billingBusy && <p className="mt-3 text-sm text-gold">{recoveryToast || "Recovering paid training…"}</p>}
+          {(billingBusy || recoveryToast) && <p role="status" className="mt-3 text-sm text-gold">{recoveryToast || "Recovering paid training…"}</p>}
           <div className="mt-3 text-center"><TipSupport /></div>
         </form>
       </div>
     </main>
   );
+}
+
+function SwitchPortrait({ size = 64 }: { size?: number }) {
+  return (
+    <img
+      src="/characters/switch.webp"
+      width={size}
+      height={Math.round(size * 1.6)}
+      alt="Switch, the braided streetwise fixer in black and red streetwear"
+      className="shrink-0 rounded-lg border border-gold/60 object-cover object-top"
+      style={{ width: size, height: Math.round(size * 1.6) }}
+    />
+  );
+}
+
+const TUTORIAL_STEPS = [
+  { title: "Welcome to Razor City", body: "Name's Switch. I know every shortcut in this city, and I'm your unofficial guide. First rule: keep your crew paid and your enemies guessing.", tip: "Nobody starts at the top. Not even you, boss." },
+  { title: "Know your numbers", body: "See that bar up top? Cash keeps the lights on, respect opens doors, moves limit what you can do, and heat tells you how close the cops are.", tip: "When the heat climbs, I suddenly become hard to find." },
+  { title: "Check your stash", body: "Tap Inventory to see every product you own. Check the local sale value and buyer limits before you promise anyone a deal.", tip: "Counting your stock is less exciting than losing it." },
+  { title: "Make your first deal", body: "Market handles supplies and dealers. The regional market lets you trade at local prices. Check the quote, pick your quantity, then confirm.", tip: "Buy smart. Sell smarter. Never confuse inventory with cash." },
+  { title: "Own the streets", body: "Tap a region on the map to inspect it. You can travel, manage your territory, or make a move on rival turf. Watch for ambushes.", tip: "A shortcut's only good if you make it home." },
+  { title: "Build your crew", body: "Game Options has Businesses & Crew and Black Market & Training. Recruit muscle, get equipment, and patch up wounded soldiers.", tip: "Loyal people are worth more than fancy gear." },
+  { title: "Ready to run the city?", body: "Close week when your moves are done. You'll get a report before the next week begins. Make sure your deals and defenses are ready.", tip: "That's your tour, boss. Now give this city something to talk about." },
+] as const;
+
+function switchAdvice(game: GameState): { title: string; message: string } {
+  const stock = Object.values(game.stash).reduce((sum, n) => sum + n, 0);
+  if (game.wounded?.count) return { title: "Your people need help", message: `Boss, we've got ${game.wounded.count} wounded. Get them patched up before the next week.` };
+  if (game.heat >= 65) return { title: "The heat is rising", message: "Cops are sniffing around. Keep your head down and watch that heat meter." };
+  if (stock === 0) return { title: "Empty shelves", message: "We're out of stock, boss. Hit Market before you promise anyone a delivery." };
+  if (game.cash < 1000) return { title: "Cash is tight", message: "Money's looking thin. Check Inventory for stock you can sell locally." };
+  const region = game.districts.find(d => d.id === cityMapOf(game).locationId);
+  if (region) {
+    const quotes = regionMarket(game, region.id).products;
+    const best = (Object.keys(game.stash) as ProductId[])
+      .filter(p => game.stash[p] > 0 && quotes[p].buyers > 0)
+      .sort((a,b) => quotes[b].sell * Math.min(game.stash[b],quotes[b].buyers) - quotes[a].sell * Math.min(game.stash[a],quotes[a].buyers))[0];
+    if (best) return { title: "A local opportunity", message: `You've got ${game.stash[best]} ${PRODUCTS[best].name} on hand. Buyers here will take up to ${quotes[best].buyers} at ${money(quotes[best].sell)} each. Check the market before prices shift.` };
+  }
+  if (game.ap === 0) return { title: "That's a wrap", message: "No moves left this week. Check your crew and inventory, then close the week when you're ready." };
+  return { title: "Keep building", message: "Look over your territory and crew before making your next move. The city's not going anywhere." };
 }
 
 function PlayScreen() {
@@ -243,22 +289,57 @@ function PlayScreen() {
   const watchingFight=!!game?.fightScene&&!game.fightScene.dismissed;
   const [combatOpen, setCombatOpen] = useState(false);
   const [tradeOpen, setTradeOpen] = useState(false);
+  const [inventoryOpen, setInventoryOpen] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState<number | null>(null);
+  const [switchOpen, setSwitchOpen] = useState(false);
+  const [switchMuted, setSwitchMuted] = useState(() => { try { return window.localStorage.getItem("razor-switch-muted") === "yes"; } catch { return false; } });
+  const [switchDismissedWeek, setSwitchDismissedWeek] = useState<number | null>(null);
+  const switchTip = game ? switchAdvice(game) : null;
+  const toggleSwitch = () => {
+    setSwitchMuted(value => {
+      const next = !value;
+      try { window.localStorage.setItem("razor-switch-muted", next ? "yes" : "no"); } catch { /* Optional preference. */ }
+      return next;
+    });
+  };
+
+  const tutorialKey = game ? `razor-tutorial-${game.seed}-${game.boss}-${game.crew}` : "";
+  const tutorialChecked = useRef(false);
+  useEffect(() => {
+    if (!game || game.week !== 1 || game.phase !== "play" || tutorialChecked.current) return;
+    tutorialChecked.current = true;
+    try {
+      if (window.localStorage.getItem(tutorialKey) !== "done") setTutorialStep(0);
+    } catch { setTutorialStep(0); }
+  }, [tutorialKey, game?.phase, game?.week]);
+  const finishTutorial = () => {
+    try { window.localStorage.setItem(tutorialKey, "done"); } catch { /* Tutorial remains skippable without storage. */ }
+    setTutorialStep(null);
+  };
+
+  const [inventoryProduct, setInventoryProduct] = useState<ProductId | null>(null);
   const [contactsOpen, setContactsOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exitPromptOpen, setExitPromptOpen] = useState(false);
+  const [closePromptOpen, setClosePromptOpen] = useState(false);
   const [shaking, setShaking] = useState(false);
   // The native Android Back listener is installed once. Its ref always points
   // at the latest open screen so an already-closed dialog cannot be reopened.
   const backHandler = useRef<() => void>(() => {});
   backHandler.current = () => {
     if (billingBusy) return; // Never interrupt a Google Play purchase.
+    if (tutorialStep !== null) { finishTutorial(); return; }
+    if (switchOpen) { setSwitchOpen(false); return; }
     if (exitPromptOpen) { setExitPromptOpen(false); return; }
+    if (closePromptOpen) { setClosePromptOpen(false); return; }
+    if (game?.phase === "event" || game?.phase === "summary") return;
     // These popups require a choice; a hardware Back press must not discard it.
     if (game?.encounters?.pending || (game && combatOf(game).ambush)) return;
     if (watchingFight) { useRazor.getState().dismissFight(); return; }
     if (contactsOpen) { setContactsOpen(false); return; }
     if (tradeOpen) { setTradeOpen(false); return; }
+    if (inventoryOpen) { setInventoryOpen(false); return; }
     if (combatOpen) { setCombatOpen(false); return; }
     if (empireOpen) { setEmpireOpen(false); return; }
     if (settingsOpen) { setSettingsOpen(false); return; }
@@ -308,13 +389,18 @@ function PlayScreen() {
     if (game?.cityMap?.order) setInspectorOpen(false);
   }, [game?.cityMap?.order]);
 
+  const forcedPopup = !!game && (game.phase !== "play" || !!combatOf(game).ambush || !!game.encounters?.pending || watchingFight);
+  const manualPopup = inspectorOpen || settingsOpen || contactsOpen || tradeOpen || inventoryOpen || combatOpen || empireOpen || modal !== "none";
+  const promptOpen = closePromptOpen || exitPromptOpen || tutorialStep !== null || switchOpen;
+  const backgroundLocked = forcedPopup || manualPopup || promptOpen || billingBusy;
+
   useEffect(() => {
-    if (inspectorOpen || settingsOpen || contactsOpen || tradeOpen || combatOpen || empireOpen || watchingFight || modal !== "none") return;
+    if (backgroundLocked) return;
     const tick = () => { if (document.visibilityState === "visible") tickContacts(); };
     tick();
     const timer = window.setInterval(tick, 1000);
     return () => window.clearInterval(timer);
-  }, [tickContacts, inspectorOpen, settingsOpen, contactsOpen, tradeOpen, combatOpen, empireOpen, watchingFight, modal]);
+  }, [tickContacts, backgroundLocked]);
 
   if (!game) return null;
   const selected = game.districts.find((d) => d.id === game.selectedId) ?? game.districts[0];
@@ -323,9 +409,10 @@ function PlayScreen() {
   const playing = game.phase === "play";
 
   return (
-    <main className={`game-viewport ${shaking ? "shake" : ""}`}>
+    <main className="game-viewport">
+      <div className={`flex min-h-0 flex-1 flex-col ${shaking ? "shake" : ""}`} inert={backgroundLocked} aria-hidden={backgroundLocked || undefined} data-game-background>
       <header className="game-topbar">
-        <div className="game-brand"><strong>RAZOR CITY</strong><span>WK {game.week} · {game.difficulty.toUpperCase()}</span></div>
+        <div className="game-brand"><strong>RAZOR CITY</strong><span>WK {game.phase === "summary" || game.phase === "event" ? (game.report?.closedWeek ?? game.week) : game.week} · {game.difficulty.toUpperCase()}</span></div>
         <button type="button" className="contacts-trigger" aria-label="Contacts and active deals" onClick={() => setContactsOpen(true)}>Deals {game.encounters?.deals.filter(d => d.status === "active").length || ""}</button>
         <button type="button" className="game-icon game-sound" aria-label={muted ? "Unmute" : "Mute"} onClick={toggleMute}>{muted ? <VolumeX size={19} /> : <Volume2 size={19} />}</button>
         <button type="button" className="game-icon game-settings" aria-label="Game options" onClick={() => setSettingsOpen(true)}>•••</button>
@@ -341,9 +428,12 @@ function PlayScreen() {
       </section>
       <nav className="game-bottom" aria-label="Empire actions">
         <button type="button" disabled={!playing || busy} onClick={() => setModal("market")}><Store size={18} />Market</button>
+        <button type="button" onClick={() => setInventoryOpen(true)}><Package size={18} />Inventory</button>
         <button type="button" onClick={() => setModal("ledger")}><BookOpen size={18} />Ledger</button>
-        <button type="button" className="game-close-week" disabled={!playing || busy} onClick={closeWeek}>Close week</button>
+        <button type="button" className="game-close-week" disabled={!playing || busy} onClick={() => setClosePromptOpen(true)}>Close week</button>
       </nav>
+      </div>
+      <div className="contents" inert={forcedPopup || promptOpen || billingBusy}>
       {inspectorOpen && selected && <Sheet title="REGION MANAGEMENT" onClose={() => setInspectorOpen(false)}><Inspector game={game} district={selected} preview={preview} playing={playing && !busy} onEmpire={()=>{setInspectorOpen(false);setEmpireOpen(true);}} /></Sheet>}
       {settingsOpen && <Sheet title="GAME OPTIONS" onClose={() => setSettingsOpen(false)}>
         <p className="text-paper">{game.crew} · {game.boss}</p>
@@ -351,23 +441,81 @@ function PlayScreen() {
         <p className="mt-2 text-sm text-mute">Weekly sales forecast: {money(preview.cash)} · +{Math.round(preview.heat)} heat</p>
         <button type="button" className="combat-opening mt-4" onClick={() => { setSettingsOpen(false); setCombatOpen(true); }}>Black Market & Training</button>
         <button type="button" className="combat-opening" onClick={()=>{setSettingsOpen(false);setEmpireOpen(true);}}>Businesses & Crew</button>
+        <button type="button" className="combat-opening" onClick={() => { setSettingsOpen(false); setTutorialStep(0); }}>Replay beginning tutorial</button>
+        <button type="button" className="combat-opening" onClick={toggleSwitch}>{switchMuted ? "Enable Switch advice" : "Mute Switch advice"}</button>
         <div className="my-4"><TipSupport /></div>
         <button type="button" className={btnGhost} onClick={() => { void showPrivacyOptions(); }}>Privacy choices</button>
       </Sheet>}
 
       {empireOpen&&<EmpirePanel game={game} close={()=>setEmpireOpen(false)} onDefend={region=>{useRazor.getState().select(region);setEmpireOpen(false);setInspectorOpen(true);}}/>}
       {combatOpen && <CombatCenter game={game} close={() => setCombatOpen(false)} />}
-      <AmbushPopup game={game} />
-      <FightScreen game={game}/>
-      {billingBusy && <div className="training-recovery" role="status"><p>{toast || "Saving training. Please wait…"}</p></div>}
-      {tradeOpen && <RegionMarket game={game} close={() => setTradeOpen(false)} />}
+      {tradeOpen && <RegionMarket game={game} close={() => { setTradeOpen(false); setInventoryProduct(null); }} initialProduct={inventoryProduct} />}
+      {inventoryOpen && <InventoryPanel game={game} close={() => setInventoryOpen(false)} openMarket={product => { setInventoryProduct(product); setInventoryOpen(false); useRazor.getState().select(cityMapOf(game).locationId); setTradeOpen(true); }} />}
       {contactsOpen && <ContactsPanel game={game} close={() => setContactsOpen(false)} />}
-      <ContactPopup game={game} />
       {modal === "market" && playing ? <MarketSheet game={game} onGear={() => { setModal("none"); setCombatOpen(true); }} /> : null}
       {modal === "ledger" ? <LedgerSheet game={game} onEmpire={()=>{setModal("none");setEmpireOpen(true);}} /> : null}
+      </div>
+      <div className="contents" inert={billingBusy || promptOpen || game.phase !== "play"}>
+        <AmbushPopup game={game} />
+        <FightScreen game={game}/>
+        <ContactPopup game={game} />
+      </div>
+      {billingBusy && <div className="training-recovery" role="status"><p>{toast || "Saving training. Please wait…"}</p></div>}
       {game.phase === "event" && game.pending ? <EventSheet /> : null}
       {game.phase === "summary" && game.report ? <SummarySheet /> : null}
       {game.phase === "won" || game.phase === "lost" ? <EndingSheet /> : null}
+      {tutorialStep !== null && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-ink/90 p-4">
+          <section role="dialog" aria-modal="true" aria-labelledby="tutorial-title" className="w-full max-w-md rounded-xl border border-gold bg-panel p-5 shadow-2xl">
+            <div className="mb-4 flex items-center gap-3 rounded-lg border border-line bg-ink/70 p-3">
+              <SwitchPortrait size={100} />
+              <div><p className="font-display text-xl text-gold">SWITCH</p><p className="text-xs text-mute">Your streetwise fixer · Tutorial guide</p></div>
+            </div>
+            <p className="text-xs font-semibold tracking-widest text-gold">STREET SMARTS · {tutorialStep + 1} / {TUTORIAL_STEPS.length}</p>
+            <h2 id="tutorial-title" className="mt-2 font-display text-2xl text-paper">{TUTORIAL_STEPS[tutorialStep].title}</h2>
+            <p className="mt-3 text-sm leading-relaxed text-paper">{TUTORIAL_STEPS[tutorialStep].body}</p>
+            <p className="mt-4 rounded-lg border-l-2 border-gold bg-ink/60 p-3 text-sm italic text-gold">“{TUTORIAL_STEPS[tutorialStep].tip}”</p>
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
+              <button type="button" className={btnGhost} onClick={finishTutorial}>Skip tutorial</button>
+              <div className="flex gap-2">
+                {tutorialStep > 0 && <button type="button" className={btnGhost} onClick={() => setTutorialStep(s => s === null ? null : Math.max(0, s - 1))}>Back</button>}
+                <button type="button" className={btnGold} onClick={() => tutorialStep === TUTORIAL_STEPS.length - 1 ? finishTutorial() : setTutorialStep(s => s === null ? null : s + 1)}>{tutorialStep === TUTORIAL_STEPS.length - 1 ? "Start playing" : "Next"}</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+      {!backgroundLocked && !switchMuted && game.week > 1 && switchDismissedWeek !== game.week && (
+        <button type="button" className="fixed bottom-20 right-3 z-[35] max-w-[220px] rounded-xl border border-gold bg-panel px-3 py-2 text-left text-sm text-paper shadow-xl" onClick={() => { setSwitchOpen(true); setSwitchDismissedWeek(game.week); }} aria-label="Read Switch's advice">
+          <strong className="block text-gold">Switch has a tip</strong><span className="text-xs text-mute">{switchTip?.title} · Tap to read</span>
+        </button>
+      )}
+      {!backgroundLocked && !switchMuted && <button type="button" className="fixed bottom-20 left-3 z-[34] flex items-center gap-2 rounded-full border border-gold bg-panel px-3 py-2 text-xs text-gold shadow-xl" onClick={() => { setSwitchOpen(true); setSwitchDismissedWeek(game.week); }}><SwitchPortrait size={24} /> Switch</button>}
+      {switchOpen && switchTip && (
+        <div className="fixed inset-0 z-[115] flex items-center justify-center bg-ink/85 p-4">
+          <section role="dialog" aria-modal="true" aria-label="Advice from Switch" className="w-full max-w-md rounded-xl border border-gold bg-panel p-5">
+            <div className="flex items-center gap-3"><SwitchPortrait size={56} /><p className="text-lg font-display text-gold">SWITCH · STREET INTEL</p></div>
+            <h2 className="mt-2 text-xl font-semibold text-paper">{switchTip.title}</h2>
+            <p className="mt-3 text-sm leading-relaxed text-paper">{switchTip.message}</p>
+            <div className="mt-5 flex flex-wrap justify-between gap-2">
+              <button type="button" className={btnGhost} onClick={() => { toggleSwitch(); setSwitchOpen(false); }}>Mute advice</button>
+              <button type="button" className={btnGold} onClick={() => setSwitchOpen(false)}>Got it, Switch</button>
+            </div>
+          </section>
+        </div>
+      )}
+      {closePromptOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/90 p-3">
+          <section role="alertdialog" aria-modal="true" aria-labelledby="close-week-title" className="w-full max-w-md rounded-xl border border-gold bg-panel p-5">
+            <h2 id="close-week-title" className="font-display text-2xl text-paper">Close week {game.week}?</h2>
+            <p className="mt-2 text-sm text-mute">Calculate sales and other results, then review them before beginning the next week. Unused moves will be lost.</p>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button type="button" className={btnGhost} onClick={() => setClosePromptOpen(false)}>Cancel</button>
+              <button type="button" className={btnGold} onClick={() => { setClosePromptOpen(false); closeWeek(); }}>Confirm close week</button>
+            </div>
+          </section>
+        </div>
+      )}
       {exitPromptOpen && (
         <div className="fixed inset-0 z-[100] flex items-end justify-center bg-ink/85 p-3 sm:items-center">
           <section role="alertdialog" aria-modal="true" aria-labelledby="return-to-menu-title" className="w-full max-w-md rounded-xl border border-line bg-panel p-5">
@@ -647,6 +795,12 @@ function Inspector({
       ) : null}
 
       <div className="mt-4 grid grid-cols-2 gap-2 border-t border-line pt-3">
+        {(game.wounded?.count ?? 0) > 0 && <div className="col-span-2 rounded border border-line p-3">
+          <p className="font-semibold text-paper">Field hospital · {game.wounded!.count} wounded</p>
+          <p className="text-sm text-mute">Injured soldiers cannot fight. Treat them before the next week or they may die.</p>
+          <button type="button" className={btnGhost} disabled={!!noMove || game.cash < TREATMENT_COST} onClick={() => useRazor.getState().treatWounded(1)}>Treat one · {money(TREATMENT_COST)}</button>
+          <button type="button" className={btnGhost} disabled={!!noMove || game.cash < game.wounded!.count * TREATMENT_COST} onClick={() => useRazor.getState().treatWounded(game.wounded!.count)}>Treat all · {money(game.wounded!.count * TREATMENT_COST)}</button>
+        </div>}
         <Action label="Hire muscle · $700" detail={`${freeM} free of ${game.crewCounts.muscle}`} disabled={!!noMove} kind="ghost" onClick={() => commit(recruit(game, "muscle"))} />
         <Action label="Hire dealer · $1,500" detail={`${freeD} free of ${game.crewCounts.dealers}`} disabled={!!noMove} kind="ghost" onClick={() => commit(recruit(game, "dealers"))} />
         <Action label="Lay low" detail="Drop heat. Lose a scrap of respect." disabled={!!noMove || game.heat < 8} kind="ghost" onClick={() => commit(layLow(game))} />
@@ -732,7 +886,7 @@ function Portrait({ src, alt }: { src: string; alt: string }) {
 function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
     <div className="fixed inset-0 z-30 flex items-end justify-center bg-ink/80 p-3 sm:items-center">
-      <article className="flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-xl border border-line bg-panel">
+      <article role="dialog" aria-modal="true" aria-label={title} className="flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-xl border border-line bg-panel">
         <header className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
           <h2 className="font-display text-2xl tracking-wide">{title}</h2>
           <button type="button" aria-label="Close" onClick={onClose} className="inline-flex size-11 items-center justify-center rounded-md border border-line">
@@ -750,25 +904,40 @@ function MarketSheet({ game, onGear }: { game: GameState; onGear: () => void }) 
   const setModal = useRazor((s) => s.setModal);
   const grantAdReward = useRazor((s) => s.grantAdReward);
   const [adBusy, setAdBusy] = useState(false);
+  const adLock = useRef(false);
+  const toast = useRazor(s => s.toast);
   const claimSponsorBonus = async () => {
-    if (adBusy) return;
+    if (adLock.current) return;
+    adLock.current = true;
     setAdBusy(true);
-    const earned = await showRewarded();
-    if (earned) grantAdReward();
-    setAdBusy(false);
+    try {
+      const earned = await showRewarded();
+      if (earned) grantAdReward();
+    } finally {
+      adLock.current = false;
+      setAdBusy(false);
+    }
+  };
+  const confirmPurchase = (id: ProductId, quantity: number) => {
+    const current = useRazor.getState().game;
+    if (!current || quantity < 1) return;
+    const price = current.prices[id].wholesale;
+    if (window.confirm(`Buy ${quantity} ${PRODUCTS[id].name} for ${money(quantity * price)}?`)) commit(buy(current, id, quantity));
   };
   return (
-    <Sheet title="WHOLESALE" onClose={() => setModal("none")}>
-      <button type="button" className="combat-opening" onClick={onGear}>Black Market & Training · Level {levelOf(game)}</button>
-      <p className="mb-3 text-sm text-mute">Buying is free of moves. Prices drift every week. You hold the stash, corners spend it.</p>
+    <Sheet title="WHOLESALE" onClose={() => { if (!adLock.current) setModal("none"); }}>
+      <button type="button" className="combat-opening" disabled={adBusy} onClick={onGear}>Black Market & Training · Level {levelOf(game)}</button>
+      <p className="mb-3 text-sm text-mute">Available cash: <strong className="text-gold">{money(game.cash)}</strong>. Buying is free of moves. Prices drift every week. Stash storage has no unit cap; purchases are limited by cash.</p>
       <button type="button" disabled={adBusy} className={`${btnGold} mb-3 w-full`} onClick={claimSponsorBonus}>
         {adBusy ? "Loading sponsor…" : "Watch ad · get $1,000 bonus"}
       </button>
+      {toast && <p role="status" className="mb-3 text-sm text-gold">{toast}</p>}
       <ul className="space-y-3">
         {(Object.keys(PRODUCTS) as ProductId[]).map((id) => {
           const p = PRODUCTS[id];
           const price = game.prices[id].wholesale;
-          const afford = Math.floor(game.cash / price);
+          const afford = Math.max(0, Math.floor(game.cash / price));
+          const fillQty = Math.min(40, afford);
           return (
             <li key={id} className="rounded-md border border-line bg-ink p-3">
               <div className="flex items-baseline justify-between gap-2">
@@ -776,18 +945,19 @@ function MarketSheet({ game, onGear }: { game: GameState; onGear: () => void }) 
                 <p className="text-gold">{money(price)}</p>
               </div>
               <p className="text-sm text-mute">{p.blurb}</p>
+              <p className="text-xs text-mute">5 units: {money(price * 5)} · 10 units: {money(price * 10)}</p>
               <p className="mt-1 text-sm text-paper">
-                Street {money(game.prices[id].street)} · you hold {game.stash[id]}
+                Street {money(game.prices[id].street)} · you hold {game.stash[id]} · affordable {afford}
               </p>
               <div className="mt-2 grid grid-cols-3 gap-2">
-                <button type="button" className={btnGhost} disabled={afford < 5} onClick={() => commit(buy(game, id, 5))}>
+                <button type="button" className={btnGhost} disabled={adBusy || afford < 5} onClick={() => confirmPurchase(id, 5)}>
                   Buy 5
                 </button>
-                <button type="button" className={btnGhost} disabled={afford < 10} onClick={() => commit(buy(game, id, 10))}>
+                <button type="button" className={btnGhost} disabled={adBusy || afford < 10} onClick={() => confirmPurchase(id, 10)}>
                   Buy 10
                 </button>
-                <button type="button" className={btnGold} disabled={afford < 1} onClick={() => commit(buy(game, id, Math.min(40, afford)))}>
-                  Fill
+                <button type="button" className={btnGold} disabled={adBusy || afford < 1} onClick={() => confirmPurchase(id, fillQty)}>
+                  Fill {fillQty} · {money(fillQty * price)}
                 </button>
               </div>
             </li>
@@ -801,8 +971,21 @@ function MarketSheet({ game, onGear }: { game: GameState; onGear: () => void }) 
 function LedgerSheet({ game,onEmpire }: { game: GameState;onEmpire:()=>void }) {
   const setModal = useRazor((s) => s.setModal);
   const abandon = useRazor((s) => s.abandon);
+  const toast = useRazor((s) => s.toast);
+  const [confirmBurn, setConfirmBurn] = useState(false);
   const blocks = game.districts.filter((d) => d.owner === "player").length;
   const worth = netWorth(game);
+  if (confirmBurn) return (
+    <Sheet title="DELETE SAVED GAME?" onClose={() => setConfirmBurn(false)}>
+      <p role="alert" className="text-paper">This permanently deletes {game.boss} · {game.crew}, week {game.week}, including {money(game.cash)}, inventory and all progress. It cannot be undone.</p>
+      <p className="mt-2 text-sm text-mute">To leave without deleting, cancel and use Save &amp; main menu instead.</p>
+      {toast && <p role="status" className="mt-2 text-blood">{toast}</p>}
+      <div className="mt-5 grid grid-cols-2 gap-3">
+        <button type="button" className={btnGold} onClick={() => setConfirmBurn(false)}>Keep my save</button>
+        <button type="button" className={btnDanger} onClick={() => abandon(true)}>Permanently delete save</button>
+      </div>
+    </Sheet>
+  );
   return (
     <Sheet title="LEDGER" onClose={() => setModal("none")}>
       <button type="button" className="combat-opening" onClick={onEmpire}>Businesses, Crew & Rival Threats</button>
@@ -856,7 +1039,7 @@ function LedgerSheet({ game,onEmpire }: { game: GameState;onEmpire:()=>void }) {
       <p className="mt-4 text-sm text-mute">
         Earned {money(game.stats.earned)} · spent {money(game.stats.spent)} · sold {game.stats.productSold} · raids {game.stats.raids}
       </p>
-      <button type="button" className={`${btnDanger} mt-4 w-full`} onClick={abandon}>
+      <button type="button" className={`${btnDanger} mt-4 w-full`} onClick={() => setConfirmBurn(true)}>
         Burn this save
       </button>
     </Sheet>
@@ -893,19 +1076,34 @@ function SummarySheet() {
   if (!game?.report) return null;
   const report = game.report;
   const delta = report.cashAfter - report.cashBefore;
+  const sales = report.sold.reduce((total, line) => total + line.cash, 0);
+  const inventoryAfter = report.inventoryAfter ?? game.stash;
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-ink/80 p-3 sm:items-center">
-      <article className="flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-xl border border-line bg-panel">
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-ink p-3 sm:items-center">
+      <article role="dialog" aria-modal="true" aria-label={`Week ${report.closedWeek} results`} className="flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-xl border border-line bg-panel">
         <div className="overflow-y-auto p-4">
           <p className="text-xs tracking-widest text-gold">WEEK {report.closedWeek} CLOSED</p>
           <h2 className="mt-1 font-display text-3xl leading-none">The books</h2>
+          <p className="mt-1 text-sm text-mute">Week {report.closedWeek} results · Week {game.week} begins when you continue.</p>
+          <p className="mt-3 text-xs text-mute">Net cash change at close</p>
           <p className={`mt-3 font-display text-2xl ${delta >= 0 ? "text-gold" : "text-blood"}`}>
             {delta >= 0 ? "+" : ""}
             {money(delta)}
           </p>
-          <p className="text-sm text-mute">
-            Cash {money(report.cashAfter)} · heat {report.heatBefore} to {report.heatAfter}
-          </p>
+          <p className="text-sm text-mute">Ending cash: {money(report.cashAfter)} · Corner sales: {money(sales)}</p>
+          <p className="text-sm text-mute">Heat: {report.heatBefore} → {report.heatAfter}</p>
+          <h3 className="mt-4 font-display text-lg text-paper">Inventory changes</h3>
+          {!report.inventoryBefore && <p className="text-xs text-mute">Opening inventory was not recorded in this older save.</p>}
+          <div className="mt-2 space-y-1 rounded-md border border-line p-2">
+            {(Object.keys(PRODUCTS) as ProductId[]).map(id => {
+              const before = report.inventoryBefore?.[id];
+              const after = inventoryAfter[id];
+              const sold = report.sold.filter(line => line.product === id).reduce((sum, line) => sum + line.units, 0);
+              const change = before === undefined ? null : after - before;
+              return <div key={id} className="flex flex-wrap justify-between gap-1 text-sm"><strong>{PRODUCTS[id].name}</strong><span>{sold} sold · {before === undefined ? `${after} remaining` : `${before} → ${after} (${change! > 0 ? "+" : ""}${change})`}</span></div>;
+            })}
+          </div>
+          <h3 className="mt-4 font-display text-lg text-paper">City activity</h3>
           <ul className="mt-3 space-y-1">
             {report.lines.map((line) => (
               <li key={line.id} className={`text-sm ${toneClass(line.tone)}`}>
@@ -916,11 +1114,13 @@ function SummarySheet() {
           <p className="mt-3 text-sm text-mute">Alive crews: {aliveGangs(game).length}. Your blocks: {game.districts.filter((d) => d.owner === "player").length}.</p>
         </div>
         <div className="border-t border-line p-3">
-          <button type="button" className={`${btnGold} w-full font-display text-lg tracking-wide`} onClick={async () => {
-            if (game.week > 1 && game.week % 3 === 0) await showInterstitial();
+          <button type="button" className={`${btnGold} w-full font-display text-lg tracking-wide`} onClick={() => {
+            // Never block the next week on an ad SDK that may fail to resolve.
+            if (useRazor.getState().game?.phase !== "summary") return;
             nextWeek();
+            if (useRazor.getState().game?.phase === "play" && game.week > 1 && game.week % 3 === 0) void showInterstitial();
           }}>
-            Begin week {game.week}
+            Continue · begin week {game.week}
           </button>
         </div>
       </article>
@@ -930,7 +1130,7 @@ function SummarySheet() {
 
 function EndingSheet() {
   const game = useRazor((s) => s.game);
-  const abandon = useRazor((s) => s.abandon);
+  const pauseGame = useRazor((s) => s.pauseGame);
   if (!game) return null;
   const won = game.phase === "won";
   return (
@@ -966,8 +1166,8 @@ function EndingSheet() {
             ))}
           </ul>
         ) : null}
-        <button type="button" className={`${btnGold} mt-4 w-full font-display text-lg tracking-wide`} onClick={abandon}>
-          New empire
+        <button type="button" className={`${btnGold} mt-4 w-full font-display text-lg tracking-wide`} onClick={pauseGame}>
+          Return to main menu
         </button>
       </article>
     </div>

@@ -32,6 +32,8 @@ export interface District {
   corners: number;
   loyalty: number;
   stationMuscle: number;
+  cameras?: number;
+  barracks?: number;
   stationDealers: number;
   focus: ProductId | "auto";
 }
@@ -90,9 +92,13 @@ export interface WeekReport {
   heatBefore: number;
   heatAfter: number;
   sold: SaleLine[];
+  // Optional for saves made before detailed week reports were introduced.
+  inventoryBefore?: Record<ProductId, number>;
+  inventoryAfter?: Record<ProductId, number>;
 }
 
 export interface GameState {
+  wounded?: { count: number; sinceWeek: number };
   empire?: import("./empire").Empire;
   regionEvents?: { week: number; events: Record<string, import("./world-events").RegionEvent | null> };
   fightScene?: import("./fight-scene").FightScene;

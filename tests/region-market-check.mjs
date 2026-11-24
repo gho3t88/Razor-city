@@ -12,9 +12,16 @@ async function game() { return page.evaluate(async () => (await import('/src/gam
 try {
   await page.goto("http://127.0.0.1:5180");
   await page.getByRole("button", { name: "Take the docks", exact: true }).click();
-  await page.getByRole("button", { name: "Trade", exact: true }).click();
+  await page.getByRole("button", { name: "Skip tutorial", exact: true }).click();
+  await page.getByRole("button", { name: "Inventory", exact: true }).click();
+  const inventory = page.getByRole("dialog", { name: "Your inventory" });
+  await inventory.waitFor();
+  assert.equal(await inventory.getByText("Yellow Dust", { exact: true }).count(), 1);
+  await inventory.getByRole("button", { name: "Trade Yellow Dust" }).click();
+  await page.getByRole("dialog", { name: "Regional market" }).waitFor();
   const dialog = page.getByRole("dialog", { name: "Regional market" });
   await dialog.waitFor();
+  assert.equal(await dialog.locator(".inventory-market-summary button").count(), 4, "All product quantities must be visible at the top of market");
   for (const [width, height] of [[393,760], [320,568], [852,393]]) {
     await page.setViewportSize({ width, height });
     const box = await dialog.boundingBox();
@@ -24,8 +31,27 @@ try {
   }
   await page.setViewportSize({ width: 393, height: 760 });
   const before = await game(); const price = before.regionMarkets.hollow.products.dust.sell;
-  await page.getByRole("spinbutton", { name: "Yellow Dust units", exact: true }).fill("5");
-  await page.getByRole("button", { name: `Sell 5 · $${(5 * price).toLocaleString("en-US")}`, exact: true }).click();
+  // Tester #08: clearing the default must not insert a 0 or 1.
+  const units = page.getByRole("spinbutton", { name: "Yellow Dust units", exact: true });
+  await units.fill("1");
+  await units.press("Backspace");
+  assert.equal(await units.inputValue(), "", "Deleting the final digit leaves the input empty");
+  const firstCard = page.locator(".market-product").first();
+  assert.equal(await firstCard.locator(".market-sell").isDisabled(), true);
+  assert.equal(await firstCard.getByRole("button", { name: /^Buy 0/ }).isDisabled(), true);
+  await units.pressSequentially("21");
+  assert.equal(await units.inputValue(), "21", "Typing 21 after clearing must not produce 121");
+  await units.fill("");
+  assert.equal(await units.inputValue(), "");
+  await units.pressSequentially("5");
+  assert.equal(await units.inputValue(), "5");
+  await page.locator(".market-product").first().locator(".market-sell").click();
+  assert.equal((await game()).cash, before.cash, "Opening trade confirmation must not charge or credit cash");
+  assert.equal(await dialog.locator(".region-market-content").evaluate(el => el.inert), true, "Underlying trade controls must be inert while confirming");
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  assert.equal((await game()).cash, before.cash, "Cancel must leave game unchanged");
+  await page.locator(".market-product").first().locator(".market-sell").click();
+  await page.getByRole("button", { name: "Confirm sell", exact: true }).click();
   const after = await game(); assert.equal(after.cash, before.cash + price * 5); assert.equal(after.stash.dust, before.stash.dust - 5);
   const savedMarket = after.regionMarkets.hollow;
   await page.getByRole("button", { name: "Close regional market" }).click();
@@ -47,6 +73,30 @@ try {
   await page.getByText("● Your crew is here", { exact: true }).waitFor();
   assert.equal((await game()).regionMarkets.blackwater.visits, 1);
   await page.screenshot({ path: "test-results/region-market-arrival.png" });
+  // Tester #04: shortage percent must use remaining buyers/local stock, not hidden demand strength.
+  // A player with no stash should see 0 units rather than a phantom 10-unit sell default.
+  await page.evaluate(async () => {
+    const { useRazor } = await import("/src/game/store.ts");
+    const current = structuredClone(useRazor.getState().game);
+    current.stash.dust = 0;
+    current.cash = 100000;
+    current.regionMarkets.blackwater.products.dust.buyers = 96;
+    current.regionMarkets.blackwater.products.dust.supply = 64;
+    current.regionMarkets.blackwater.products.dust.previousSell = current.regionMarkets.blackwater.products.dust.sell;
+    useRazor.setState({ game: current });
+  });
+  await page.getByRole("button", { name: "Close regional market" }).click();
+  await page.getByRole("button", { name: "Trade", exact: true }).click();
+  const dustCard = page.locator(".market-product").first();
+  const dustUnits = dustCard.getByRole("spinbutton", { name: "Yellow Dust units" });
+  assert.equal(await dustUnits.inputValue(), "0", "No stash must not prefill 10 sell units");
+  assert.equal(await dustCard.getByText("150%", { exact: true }).count(), 1, "96 buyers / 64 local stock is 150%");
+  assert.ok((await dustCard.locator(".market-product-heading").innerText()).includes("Sell price change vs previous quote: 0% (no change)"));
+  assert.equal(await dustCard.locator(".market-sell").isDisabled(), true, "Zero units cannot be sold");
+  await dustCard.getByRole("button", { name: "Max sell" }).click();
+  assert.equal(await dustUnits.inputValue(), "0", "Max sell with no stash stays at zero");
+  await dustCard.getByRole("button", { name: /Max buy/ }).click();
+  assert.equal(await dustUnits.inputValue(), "64", "Buying remains possible despite zero owned inventory");
   assert.deepEqual(errors, []);
   console.log("PASS regional market phone layouts, direct sale totals, saved demand and quotes, comparisons, remote trade restrictions and fresh quotes after travel.");
 } finally { await browser.close(); await server.close(); }

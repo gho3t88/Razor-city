@@ -1,3 +1,5 @@
+import { upgradeTerritory, type TerritoryUpgrade } from "./territory";
+import { treatWounded } from "./medical";
 import { buyBusiness, upgradeBusiness, recruitSpecialist, supportSpecialist, payOffThreat } from "./empire";
 import { dismissFight } from "./fight-scene";
 import { refreshRegionEvents } from "./world-events";
@@ -55,6 +57,8 @@ interface RazorStore {
   payOffThreat: (id:string)=>void;
   dismissFight: ()=>void;
   showFight: ()=>void;
+  upgradeTerritory: (id: string, kind: TerritoryUpgrade) => void;
+  treatWounded: (count: number) => void;
   buyWeapon: (id: string) => void;
   equipWeapon: (id: string) => void;
   resolveAmbush: (choice: "run" | "fight" | "surrender") => void;
@@ -63,7 +67,7 @@ interface RazorStore {
   startNew: (opts: StartOpts) => void;
   continueGame: () => void;
   pauseGame: () => void;
-  abandon: () => void;
+  abandon: (confirmed?: boolean) => void;
   select: (id: string) => void;
   commit: (result: Result) => void;
   closeWeek: () => void;
@@ -193,8 +197,11 @@ export const useRazor = create<RazorStore>((set, get) => ({
     unlockAudio();
     const game = createGame(opts);
     const legacy = { ...get().legacy, runs: get().legacy.runs + 1 };
+    if (!persist(game)) {
+      set({ toast: "Unable to save the new game. Free storage and try again." });
+      return;
+    }
     writeLegacy(legacy);
-    persist(game);
     set({
       screen: "game",
       game,
@@ -230,9 +237,12 @@ export const useRazor = create<RazorStore>((set, get) => ({
     set({ screen: "start", game: null, hasSave: true, saveMeta: metaOf(game), modal: "none", toast: null });
   },
 
-  abandon: () => {
-    if (get().billingBusy) return;
-    persist(null);
+  abandon: (confirmed) => {
+    if (confirmed !== true || get().billingBusy || !get().game) return;
+    if (!persist(null)) {
+      set({ toast: "Could not delete the save. Your existing progress is still protected." });
+      return;
+    }
     set({ screen: "start", game: null, hasSave: false, saveMeta: null, modal: "none", toast: null });
   },
 
@@ -242,8 +252,11 @@ export const useRazor = create<RazorStore>((set, get) => ({
     if (!game) return;
     const result = setSelected(game, id);
     if (!result.ok) return;
-    persist(result.state);
-    set({ game: result.state });
+    if (!persist(result.state)) {
+      set({ toast: "Could not save your selection. Please try again." });
+      return;
+    }
+    set({ game: result.state, saveMeta: metaOf(result.state) });
   },
 
   commit: (result) => {
@@ -271,9 +284,12 @@ export const useRazor = create<RazorStore>((set, get) => ({
         bestWorth: Math.max(legacy.bestWorth, worth),
         bestWeek: game.phase === "won" ? Math.min(legacy.bestWeek ?? game.week, game.week) : legacy.bestWeek,
       };
-      writeLegacy(legacy);
     }
-    persist(game);
+    if (!persist(game)) {
+      set({ toast: "Could not save this action. No changes were applied. Check available storage." });
+      return;
+    }
+    if (justEnded) writeLegacy(legacy);
     set({
       game,
       legacy,
@@ -288,7 +304,7 @@ export const useRazor = create<RazorStore>((set, get) => ({
 
   closeWeek: () => {
     const game = get().game;
-    if (!game) return;
+    if (!game || game.phase !== "play" || get().modal !== "none") return;
     if (combatOf(game).ambush) { set({ toast: "Resolve the ambush first." }); return; }
     if (game.encounters?.pending) { set({ toast: "Answer your contact first." }); return; }
     get().commit(endWeek(game));
@@ -302,23 +318,18 @@ export const useRazor = create<RazorStore>((set, get) => ({
 
   nextWeek: () => {
     const game = get().game;
-    if (!game) return;
+    if (!game || game.phase !== "summary") return;
     get().commit(continueReport(game));
   },
 
   grantAdReward: () => {
     const game = get().game;
     if (!game || game.phase !== "play" || combatOf(game).ambush || cityMapOf(game).order) return false;
-    const key = `razor-city-ad-reward-week-${game.week}`;
-    try {
-      if (localStorage.getItem(key) === "1") {
-        set({ toast: "Ad bonus already claimed this week." });
-        return false;
-      }
-      localStorage.setItem(key, "1");
-    } catch { /* continue without persistence guard */ }
     const rewarded = { ...game, cash: game.cash + 1000 };
-    persist(rewarded);
+    if (!persist(rewarded)) {
+      set({ toast: "Ad completed, but the reward could not be saved. Please try again." });
+      return false;
+    }
     set({ game: rewarded, saveMeta: metaOf(rewarded), toast: "$1,000 sponsor bonus added." });
     playSound("tick");
     return true;
@@ -344,8 +355,12 @@ export const useRazor = create<RazorStore>((set, get) => ({
     const result = completeCityOrder(game);
     if (!result) return;
     // Unlock only inside this synchronous completion, then use normal save/legacy handling.
-    set({ game: { ...game, cityMap: { ...cityMapOf(game), order: null } } });
+    const unlocked = { ...game, cityMap: { ...cityMapOf(game), order: null } };
+    set({ game: unlocked });
     get().commit(result);
+    // If storage rejected the completed order, retain the original pending order
+    // so reopening the app can retry instead of silently losing the result.
+    if (get().game === unlocked) set({ game });
   },
 
   refreshWallet: async () => { try { const wallet = await creditWallet(); set({ premiumBalance: wallet.balance }); } catch { /* earned credits remain usable offline */ } },
@@ -354,8 +369,10 @@ export const useRazor = create<RazorStore>((set, get) => ({
   recruitSpecialist: id => {const g=get().game;if(g)get().commit(recruitSpecialist(g,id));},
   supportSpecialist: id => {const g=get().game;if(g)get().commit(supportSpecialist(g,id));},
   payOffThreat: id => {const g=get().game;if(g)get().commit(payOffThreat(g,id));},
-  showFight: () => {const g=get().game;if(!g?.fightScene||get().billingBusy)return;const s=structuredClone(g);s.fightScene!.dismissed=false;persist(s);set({game:s});},
-  dismissFight: () => {const g=get().game;if(!g||get().billingBusy)return;const r=dismissFight(g);if(r.ok){persist(r.state);set({game:r.state});}},
+  showFight: () => {const g=get().game;if(!g?.fightScene||get().billingBusy)return;const s=structuredClone(g);s.fightScene!.dismissed=false;if(!persist(s)){set({toast:"Could not save the fight report."});return;}set({game:s});},
+  dismissFight: () => {const g=get().game;if(!g||get().billingBusy)return;const r=dismissFight(g);if(r.ok){if(!persist(r.state)){set({toast:"Could not save the dismissed report."});return;}set({game:r.state});}},
+  upgradeTerritory: (id, kind) => { const g = get().game; if (g) get().commit(upgradeTerritory(g, id, kind)); },
+  treatWounded: count => { const g = get().game; if (g) get().commit(treatWounded(g, count)); },
   buyWeapon: id => { const g = get().game; if (g) get().commit(buyWeapon(g, id)); },
   equipWeapon: id => { const g = get().game; if (g) get().commit(equipWeapon(g, id)); },
   resolveAmbush: choice => { const g = get().game; if (g) get().commit(choice==="fight"?beginAmbushFight(g):resolveAmbush(g, choice)); },
@@ -387,7 +404,10 @@ export const useRazor = create<RazorStore>((set, get) => ({
     if (!game || get().billingBusy || combatOf(game).ambush || get().modal !== "none") return;
     const result = tickEncounters(game);
     if (!result?.ok) return;
-    persist(result.state);
+    if (!persist(result.state)) {
+      set({ toast: "Could not save the incoming contact. Free storage and try again." });
+      return;
+    }
     set({ game: result.state, saveMeta: metaOf(result.state) });
     if (result.state.encounters?.pending) playSound("tick");
   },
