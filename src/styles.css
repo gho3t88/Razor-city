@@ -404,3 +404,18 @@
 .inventory-market-summary button small{font-size:10px;color:#aac2bd}
 .market-product{scroll-margin-top:12px}
 @media(max-width:440px){.inventory-grid{grid-template-columns:1fr}.inventory-header{padding:13px 16px}.inventory-content{padding:12px 16px}.inventory-totals strong{font-size:18px}.inventory-item{padding:12px}}
+
+/* Capacitor 8 supplies CSS inset variables even on Android WebViews with incorrect env values. */
+:root {
+  --razor-safe-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --razor-safe-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+  --razor-safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --razor-safe-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+}
+.game-viewport { padding: var(--razor-safe-top) var(--razor-safe-right) var(--razor-safe-bottom) var(--razor-safe-left); }
+.start-screen-safe > div.relative { padding-top: max(24px, var(--razor-safe-top)); padding-bottom: max(24px, var(--razor-safe-bottom)); padding-left: max(16px, var(--razor-safe-left)); padding-right: max(16px, var(--razor-safe-right)); }
+.game-viewport .fixed.inset-0, .contact-backdrop, .region-market-backdrop, .inventory-backdrop, .training-recovery {
+  padding: max(12px, var(--razor-safe-top)) max(12px, var(--razor-safe-right)) max(12px, var(--razor-safe-bottom)) max(12px, var(--razor-safe-left));
+}
+.game-viewport [role="dialog"], .game-viewport [role="alertdialog"] { max-height: 100%; }
+.game-viewport [role="dialog"] .overflow-y-auto { min-height: 0; overscroll-behavior: contain; }

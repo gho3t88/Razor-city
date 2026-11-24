@@ -145,6 +145,18 @@ useRazor.getState().tickCity();
 assert.equal(useRazor.getState().game?.cityMap?.order, null);
 checks.push("Storage failure preserves unfinished orders until a successful retry.");
 
+// Every successful verified reward is credited and persisted, even in the same week.
+const rewardGame = fresh();
+useRazor.setState({ game: rewardGame, hasSave: true });
+assert.equal(useRazor.getState().grantAdReward(), true);
+assert.equal(useRazor.getState().grantAdReward(), true);
+assert.equal(useRazor.getState().game?.cash, rewardGame.cash + 2000);
+failWrites = true;
+assert.equal(useRazor.getState().grantAdReward(), false);
+assert.equal(useRazor.getState().game?.cash, rewardGame.cash + 2000);
+failWrites = false;
+checks.push("Repeat ad rewards credit the promised amount; failed persistence cannot credit cash.");
+
 // A failed delete must not make the game claim the save was abandoned.
 useRazor.setState({ game: fresh(), hasSave: true });
 useRazor.getState().abandon();

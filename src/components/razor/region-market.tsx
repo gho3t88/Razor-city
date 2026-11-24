@@ -30,16 +30,16 @@ export function RegionMarket({ game, close, initialProduct = null }: { game: Gam
     return () => previous?.focus();
   }, []);
   return <div className="region-market-backdrop"><section ref={dialog} role="dialog" aria-modal="true" aria-label="Regional market" className="region-market-dialog" tabIndex={-1} onKeyDown={e => {
-    if (e.key === "Escape") close();
+    if (e.key === "Escape") { if (confirmation) setConfirmation(null); else close(); }
     if (e.key !== "Tab") return;
-    const nodes = Array.from(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled)') ?? []);
+    const nodes = Array.from(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled)') ?? []).filter(node => !node.closest('[inert]'));
     const first = nodes[0], last = nodes[nodes.length - 1];
     if (!first) return;
     if (e.shiftKey && (document.activeElement === first || document.activeElement === dialog.current)) { e.preventDefault(); last.focus(); }
     else if (!e.shiftKey && (document.activeElement === last || document.activeElement === dialog.current)) { e.preventDefault(); first.focus(); }
   }}>
-    <header className="region-market-title"><div><p>LOCAL ECONOMY · WEEK {game.week}</p><h2>{selected.name}</h2></div><button type="button" aria-label="Close regional market" onClick={close}>✕</button></header>
-    <div className="region-market-content">
+    <header inert={!!confirmation} className="region-market-title"><div><p>LOCAL ECONOMY · WEEK {game.week}</p><h2>{selected.name}</h2></div><button type="button" aria-label="Close regional market" onClick={close}>✕</button></header>
+    <div inert={!!confirmation} className="region-market-content">
       {regionEvent(game,selected.id)&&<div className="market-news market-world-event"><strong>{regionEvent(game,selected.id)!.name.toUpperCase()}</strong><p>{regionEvent(game,selected.id)!.description}</p></div>}
       <div className={`market-news ${local.event}`}><strong>{local.event === "surge" ? "PRICE SPIKE" : local.event === "slump" ? "PRICE DROP" : "MARKET WATCH"}</strong><p>{local.headline}</p></div>
       <div className="market-location"><span>{present ? "● Your crew is here" : "○ Travel here to buy or sell"}</span><button type="button" aria-pressed={compare} onClick={() => setCompare(!compare)}>{compare ? "Hide comparison" : "Compare regions"}</button></div>

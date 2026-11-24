@@ -420,11 +420,10 @@ export function buy(state: GameState, product: ProductId, qty: number): Result {
   if (state.phase !== "play") return fail("The market is shut.");
   const next = clone(state);
   const price = next.prices[product].wholesale;
-  let n = Math.floor(qty);
-  if (n < 1) return fail("Buy at least one.");
+  const n = qty;
+  if (!Number.isSafeInteger(n) || n < 1) return fail("Choose a positive whole number of units.");
   const affordable = Math.floor(next.cash / price);
-  if (affordable < 1) return fail("Too broke for that.");
-  if (n > affordable) n = affordable;
+  if (n > affordable) return fail("Not enough cash for that quantity.");
   const cost = price * n;
   next.cash -= cost;
   next.stash[product] += n;

@@ -47,6 +47,7 @@ try {
   assert.equal(await units.inputValue(), "5");
   await page.locator(".market-product").first().locator(".market-sell").click();
   assert.equal((await game()).cash, before.cash, "Opening trade confirmation must not charge or credit cash");
+  assert.equal(await dialog.locator(".region-market-content").evaluate(el => el.inert), true, "Underlying trade controls must be inert while confirming");
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   assert.equal((await game()).cash, before.cash, "Cancel must leave game unchanged");
   await page.locator(".market-product").first().locator(".market-sell").click();

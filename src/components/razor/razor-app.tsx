@@ -119,7 +119,7 @@ function StartScreen() {
   const [art, setArt] = useState(true);
 
   return (
-    <main className="relative min-h-dvh bg-ink">
+    <main className="relative min-h-dvh bg-ink start-screen-safe">
       {art ? (
         <img
           src="/art/hero.jpg"
@@ -144,9 +144,10 @@ function StartScreen() {
             <li>Three moves a week. Spend them to expand, hire, bribe, or hit a rival.</li>
             <li>Heat brings raids. Three raids end you. Eight blocks crown the city.</li>
           </ul>
+          {hasSave && saveMeta && <p className="mt-4 text-sm text-paper">Current save: {saveMeta.boss} · {saveMeta.crew} · Week {saveMeta.week} · {money(saveMeta.cash)}</p>}
           {legacy.runs > 0 ? (
             <p className="mt-4 text-sm text-gold">
-              Legacy: {legacy.wins} crown{legacy.wins === 1 ? "" : "s"}
+              Completed-run records: {legacy.wins} crown{legacy.wins === 1 ? "" : "s"}
               {legacy.bestWeek != null ? ` · fastest week ${legacy.bestWeek}` : ""} · best book {money(legacy.bestWorth)}
             </p>
           ) : null}
@@ -222,7 +223,7 @@ function StartScreen() {
               {saveMeta.phase === "won" ? " · crowned" : saveMeta.phase === "lost" ? " · finished" : ""}
             </button>
           ) : null}
-          {billingBusy && <p className="mt-3 text-sm text-gold">{recoveryToast || "Recovering paid training…"}</p>}
+          {(billingBusy || recoveryToast) && <p role="status" className="mt-3 text-sm text-gold">{recoveryToast || "Recovering paid training…"}</p>}
           <div className="mt-3 text-center"><TipSupport /></div>
         </form>
       </div>
@@ -903,23 +904,34 @@ function MarketSheet({ game, onGear }: { game: GameState; onGear: () => void }) 
   const setModal = useRazor((s) => s.setModal);
   const grantAdReward = useRazor((s) => s.grantAdReward);
   const [adBusy, setAdBusy] = useState(false);
+  const adLock = useRef(false);
+  const toast = useRazor(s => s.toast);
   const claimSponsorBonus = async () => {
-    if (adBusy) return;
+    if (adLock.current) return;
+    adLock.current = true;
     setAdBusy(true);
     try {
       const earned = await showRewarded();
       if (earned) grantAdReward();
     } finally {
+      adLock.current = false;
       setAdBusy(false);
     }
   };
+  const confirmPurchase = (id: ProductId, quantity: number) => {
+    const current = useRazor.getState().game;
+    if (!current || quantity < 1) return;
+    const price = current.prices[id].wholesale;
+    if (window.confirm(`Buy ${quantity} ${PRODUCTS[id].name} for ${money(quantity * price)}?`)) commit(buy(current, id, quantity));
+  };
   return (
-    <Sheet title="WHOLESALE" onClose={() => setModal("none")}>
-      <button type="button" className="combat-opening" onClick={onGear}>Black Market & Training · Level {levelOf(game)}</button>
-      <p className="mb-3 text-sm text-mute">Available cash: <strong className="text-gold">{money(game.cash)}</strong>. Buying is free of moves. Prices drift every week. You hold the stash, corners spend it.</p>
+    <Sheet title="WHOLESALE" onClose={() => { if (!adLock.current) setModal("none"); }}>
+      <button type="button" className="combat-opening" disabled={adBusy} onClick={onGear}>Black Market & Training · Level {levelOf(game)}</button>
+      <p className="mb-3 text-sm text-mute">Available cash: <strong className="text-gold">{money(game.cash)}</strong>. Buying is free of moves. Prices drift every week. Stash storage has no unit cap; purchases are limited by cash.</p>
       <button type="button" disabled={adBusy} className={`${btnGold} mb-3 w-full`} onClick={claimSponsorBonus}>
         {adBusy ? "Loading sponsor…" : "Watch ad · get $1,000 bonus"}
       </button>
+      {toast && <p role="status" className="mb-3 text-sm text-gold">{toast}</p>}
       <ul className="space-y-3">
         {(Object.keys(PRODUCTS) as ProductId[]).map((id) => {
           const p = PRODUCTS[id];
@@ -938,13 +950,13 @@ function MarketSheet({ game, onGear }: { game: GameState; onGear: () => void }) 
                 Street {money(game.prices[id].street)} · you hold {game.stash[id]} · affordable {afford}
               </p>
               <div className="mt-2 grid grid-cols-3 gap-2">
-                <button type="button" className={btnGhost} disabled={afford < 5} onClick={() => commit(buy(game, id, 5))}>
+                <button type="button" className={btnGhost} disabled={adBusy || afford < 5} onClick={() => confirmPurchase(id, 5)}>
                   Buy 5
                 </button>
-                <button type="button" className={btnGhost} disabled={afford < 10} onClick={() => commit(buy(game, id, 10))}>
+                <button type="button" className={btnGhost} disabled={adBusy || afford < 10} onClick={() => confirmPurchase(id, 10)}>
                   Buy 10
                 </button>
-                <button type="button" className={btnGold} disabled={afford < 1} onClick={() => { if (window.confirm(`Buy ${fillQty} ${p.name} for ${money(fillQty * price)}?`)) commit(buy(game, id, fillQty)); }}>
+                <button type="button" className={btnGold} disabled={adBusy || afford < 1} onClick={() => confirmPurchase(id, fillQty)}>
                   Fill {fillQty} · {money(fillQty * price)}
                 </button>
               </div>
