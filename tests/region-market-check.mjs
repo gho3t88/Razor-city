@@ -31,7 +31,20 @@ try {
   }
   await page.setViewportSize({ width: 393, height: 760 });
   const before = await game(); const price = before.regionMarkets.hollow.products.dust.sell;
-  await page.getByRole("spinbutton", { name: "Yellow Dust units", exact: true }).fill("5");
+  // Tester #08: clearing the default must not insert a 0 or 1.
+  const units = page.getByRole("spinbutton", { name: "Yellow Dust units", exact: true });
+  await units.fill("1");
+  await units.press("Backspace");
+  assert.equal(await units.inputValue(), "", "Deleting the final digit leaves the input empty");
+  const firstCard = page.locator(".market-product").first();
+  assert.equal(await firstCard.locator(".market-sell").isDisabled(), true);
+  assert.equal(await firstCard.getByRole("button", { name: /^Buy 0/ }).isDisabled(), true);
+  await units.pressSequentially("21");
+  assert.equal(await units.inputValue(), "21", "Typing 21 after clearing must not produce 121");
+  await units.fill("");
+  assert.equal(await units.inputValue(), "");
+  await units.pressSequentially("5");
+  assert.equal(await units.inputValue(), "5");
   await page.locator(".market-product").first().locator(".market-sell").click();
   assert.equal((await game()).cash, before.cash, "Opening trade confirmation must not charge or credit cash");
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
