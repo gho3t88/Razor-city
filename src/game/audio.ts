@@ -64,10 +64,10 @@ function initialize() {
 }
 export function unlockAudio(): Promise<void> {
   try { initialize(); } catch { return Promise.resolve(); }
-  if (!ctx) return Promise.resolve();
+  if (!ctx || (typeof document !== "undefined" && document.visibilityState === "hidden")) return Promise.resolve();
   if (ctx.state === "running") { startClock(); return Promise.resolve(); }
   if (!resumePending) {
-    resumePending = ctx.resume().then(()=>{if(ctx?.state==="running")startClock();}).catch(()=>{}).finally(()=>{resumePending=null;});
+    resumePending = ctx.resume().then(()=>{if(ctx?.state==="running"){if(document.visibilityState==="hidden")pauseAudio();else startClock();}}).catch(()=>{}).finally(()=>{resumePending=null;});
   }
   return resumePending;
 }
@@ -108,7 +108,7 @@ function startClock() {
   if(timer!==null||!ctx)return;
   nextBeat=ctx.currentTime+.04;
   const schedule=()=>{
-    if(!ctx||!music||ctx.state!=="running")return;
+    if(!ctx||!music||ctx.state!=="running"||document.visibilityState==="hidden")return;
     if(nextBeat<ctx.currentTime-.1)nextBeat=ctx.currentTime+.03;
     const p=tracks[scene];
     while(nextBeat<ctx.currentTime+.12){

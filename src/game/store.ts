@@ -1,12 +1,12 @@
 import { buyBusiness, upgradeBusiness, recruitSpecialist, supportSpecialist, payOffThreat } from "./empire";
 import { dismissFight } from "./fight-scene";
 import { refreshRegionEvents } from "./world-events";
-import { beginAmbushFight, buyWeapon, combatOf, equipWeapon, resolveAmbush, trainCombat, trainingCost } from "./combat";
+import { beginAmbushFight, buyWeapon, combatOf, levelOf, equipWeapon, resolveAmbush, trainCombat, trainingCost } from "./combat";
 import { creditWallet, spendCredits } from "@/lib/credits";
 import { refreshRegionMarkets, tradeRegion } from "./region-economy";
 import { tickEncounters, decideDeal, deliverDeal, resolveTalk } from "./encounters";
 import { create } from "zustand";
-import { playSound, resumeAudio, setAudioMuted, unlockAudio } from "@/game/audio";
+import { playSound, resumeAudio, setAudioMuted, unlockAudio, type Sound } from "@/game/audio";
 import { continueReport, createGame, endWeek, isGameState, netWorth, refreshDefense, resolveChoice, setSelected } from "@/game/logic";
 import type { GameState, ProductId, StartOpts } from "@/game/types";
 import type { Result } from "@/game/logic";
@@ -65,7 +65,7 @@ interface RazorStore {
   pauseGame: () => void;
   abandon: () => void;
   select: (id: string) => void;
-  commit: (result: Result) => void;
+  commit: (result: Result, audioOverride?: Sound) => void;
   closeWeek: () => void;
   choose: (optionId: string) => void;
   nextWeek: () => void;
@@ -246,7 +246,7 @@ export const useRazor = create<RazorStore>((set, get) => ({
     set({ game: result.state });
   },
 
-  commit: (result) => {
+  commit: (result, audioOverride) => {
     if (get().billingBusy) { set({ toast: "Please wait for your training payment to finish." }); return; }
     if (get().game && cityMapOf(get().game!).order) {
       set({ toast: "Your crew is carrying out an order. Wait for it to finish." });
@@ -288,7 +288,9 @@ export const useRazor = create<RazorStore>((set, get) => ({
     else if (prev && game.crewCounts.muscle+game.crewCounts.dealers > prev.crewCounts.muscle+prev.crewCounts.dealers) playSound("recruit");
     else if (prev && !cityMapOf(prev).order && cityMapOf(game).order) playSound("travel");
     else if (prev && !combatOf(prev).ambush && combatOf(game).ambush) playSound("raid");
-    else if (prev && prev.phase !== game.phase && game.phase !== "play") playSound("week");
+    else if (prev && levelOf(game)>levelOf(prev)) playSound("level");
+    else if (prev && prev.phase !== game.phase && game.phase === "summary") playSound("week");
+    else if (audioOverride) playSound(audioOverride);
     else if (result.fx) playSound(result.fx);
   },
 
@@ -387,7 +389,7 @@ export const useRazor = create<RazorStore>((set, get) => ({
       else set({ billingBusy: true, toast: "Training payment is being recovered. Reopen the game to retry safely." });
     }
   },
-  tradeRegion: (region, product, quantity, side) => { const game = get().game; if (game) { const result=tradeRegion(game, region, product, quantity, side); get().commit(result); if(result.ok && !result.fx) playSound(side==="buy"?"buy":"sell"); } },
+  tradeRegion: (region, product, quantity, side) => { const game = get().game; if (game) { get().commit(tradeRegion(game, region, product, quantity, side),side==="buy"?"buy":"sell"); } },
   tickContacts: () => {
     const game = get().game;
     if (!game || get().billingBusy || combatOf(game).ambush || get().modal !== "none") return;

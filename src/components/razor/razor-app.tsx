@@ -826,13 +826,13 @@ function MarketSheet({ game, onGear }: { game: GameState; onGear: () => void }) 
                 Street {money(game.prices[id].street)} · you hold {game.stash[id]}
               </p>
               <div className="mt-2 grid grid-cols-3 gap-2">
-                <button type="button" className={btnGhost} disabled={afford < 5} onClick={() => commit(buy(game, id, 5))}>
+                <button type="button" className={btnGhost} disabled={afford < 5} onClick={() => commit(buy(game, id, 5), "buy")}>
                   Buy 5
                 </button>
-                <button type="button" className={btnGhost} disabled={afford < 10} onClick={() => commit(buy(game, id, 10))}>
+                <button type="button" className={btnGhost} disabled={afford < 10} onClick={() => commit(buy(game, id, 10), "buy")}>
                   Buy 10
                 </button>
-                <button type="button" className={btnGold} disabled={afford < 1} onClick={() => commit(buy(game, id, Math.min(40, afford)))}>
+                <button type="button" className={btnGold} disabled={afford < 1} onClick={() => commit(buy(game, id, Math.min(40, afford)), "buy")}>
                   Fill
                 </button>
               </div>
