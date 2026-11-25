@@ -283,7 +283,13 @@ export const useRazor = create<RazorStore>((set, get) => ({
       modal: game.phase === "play" ? get().modal : "none",
       pulse: result.fx === "hit" || result.fx === "raid" ? get().pulse + 1 : get().pulse,
     });
-    if (result.fx) playSound(result.fx);
+    if (justEnded) playSound(game.phase === "won" ? "win" : "bad");
+    else if (prev && game.districts.filter(d=>d.owner==="player").length > prev.districts.filter(d=>d.owner==="player").length) playSound("territory");
+    else if (prev && game.crewCounts.muscle+game.crewCounts.dealers > prev.crewCounts.muscle+prev.crewCounts.dealers) playSound("recruit");
+    else if (prev && !cityMapOf(prev).order && cityMapOf(game).order) playSound("travel");
+    else if (prev && !combatOf(prev).ambush && combatOf(game).ambush) playSound("raid");
+    else if (prev && prev.phase !== game.phase && game.phase !== "play") playSound("week");
+    else if (result.fx) playSound(result.fx);
   },
 
   closeWeek: () => {
@@ -320,7 +326,7 @@ export const useRazor = create<RazorStore>((set, get) => ({
     const rewarded = { ...game, cash: game.cash + 1000 };
     persist(rewarded);
     set({ game: rewarded, saveMeta: metaOf(rewarded), toast: "$1,000 sponsor bonus added." });
-    playSound("tick");
+    playSound("reward");
     return true;
   },
 
@@ -381,7 +387,7 @@ export const useRazor = create<RazorStore>((set, get) => ({
       else set({ billingBusy: true, toast: "Training payment is being recovered. Reopen the game to retry safely." });
     }
   },
-  tradeRegion: (region, product, quantity, side) => { const game = get().game; if (game) get().commit(tradeRegion(game, region, product, quantity, side)); },
+  tradeRegion: (region, product, quantity, side) => { const game = get().game; if (game) { const result=tradeRegion(game, region, product, quantity, side); get().commit(result); if(result.ok && !result.fx) playSound(side==="buy"?"buy":"sell"); } },
   tickContacts: () => {
     const game = get().game;
     if (!game || get().billingBusy || combatOf(game).ambush || get().modal !== "none") return;
@@ -389,7 +395,7 @@ export const useRazor = create<RazorStore>((set, get) => ({
     if (!result?.ok) return;
     persist(result.state);
     set({ game: result.state, saveMeta: metaOf(result.state) });
-    if (result.state.encounters?.pending) playSound("tick");
+    if (result.state.encounters?.pending && !game.encounters?.pending) playSound("deal");
   },
   decideDeal: (id, accept) => { const game = get().game; if (game) get().commit(decideDeal(game, id, accept)); },
   deliverDeal: id => { const game = get().game; if (game) get().commit(deliverDeal(game, id)); },

@@ -19,7 +19,7 @@ import {
   VolumeX,
   X,
 } from "lucide-react";
-import { resumeAudio } from "@/game/audio";
+import { resumeAudio, pauseAudio, unlockAudio, playSound, setAudioScene, getAudioVolumes, setAudioVolumes, type Volumes } from "@/game/audio";
 import { showInterstitial, showPrivacyOptions, showRewarded } from "@/lib/ads";
 import { TipSupport } from "./tip-support";
 import { ContactsPanel, ContactPopup } from "./contacts";
@@ -94,12 +94,50 @@ export function RazorApp() {
   useEffect(() => {
     const onVis = () => {
       if (document.visibilityState === "visible") resumeAudio();
+      else pauseAudio();
     };
+    const gesture = () => { void unlockAudio(); };
+    const click = (event: MouseEvent) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest("button:not(:disabled)") && !target.closest(".game-sound")) {
+        void playSound("tick");
+      }
+    };
+    document.addEventListener("pointerdown", gesture, true);
+    document.addEventListener("keydown", gesture, true);
+    document.addEventListener("click", click, true);
     document.addEventListener("visibilitychange", onVis);
-    return () => document.removeEventListener("visibilitychange", onVis);
+    return () => {
+      document.removeEventListener("pointerdown", gesture, true);
+      document.removeEventListener("keydown", gesture, true);
+      document.removeEventListener("click", click, true);
+      document.removeEventListener("visibilitychange", onVis);
+      pauseAudio();
+    };
   }, []);
+  useEffect(() => { if (screen === "start") setAudioScene("menu"); }, [screen]);
 
   return screen === "game" ? <PlayScreen /> : <StartScreen />;
+}
+
+function AudioSettings() {
+  const [volumes, setVolumes] = useState<Volumes>(getAudioVolumes);
+  const muted = useRazor(s=>s.muted);
+  const toggleMute = useRazor(s=>s.toggleMute);
+  const channels: [keyof Volumes,string][] = [["master","Master volume"],["music","Music"],["effects","Sound effects"],["ambience","City ambience"]];
+  return <section className="my-4 rounded-md border border-line bg-panel-2 p-3" aria-label="Audio settings">
+    <h3 className="font-display text-lg text-paper">Audio Settings</h3>
+    {channels.map(([key,label])=><label key={key} className="mt-3 block text-sm text-paper">
+      <span className="flex justify-between"><span>{label}</span><span>{volumes[key]}%</span></span>
+      <input aria-label={label} className="w-full accent-amber-500" type="range" min="0" max="100" value={volumes[key]} onChange={e=>{
+        const updated={...volumes,[key]:Number(e.target.value)};setVolumes(updated);setAudioVolumes(updated);
+      }}/>
+    </label>)}
+    <div className="mt-3 flex flex-wrap gap-2">
+      <button type="button" className={btnGhost} onClick={toggleMute}>{muted?"Unmute":"Mute all"}</button>
+      <button type="button" className={btnGhost} disabled={muted||volumes.master===0||volumes.effects===0} onClick={()=>void playSound("reward")}>Test sound</button>
+    </div>
+  </section>;
 }
 
 function StartScreen() {
@@ -114,6 +152,7 @@ function StartScreen() {
   const [crew, setCrew] = useState("Hollow Kings");
   const [difficulty, setDifficulty] = useState<"street" | "war">("street");
   const [art, setArt] = useState(true);
+  const [audioOpen, setAudioOpen] = useState(false);
 
   return (
     <main className="relative min-h-dvh bg-ink">
@@ -219,6 +258,8 @@ function StartScreen() {
             </button>
           ) : null}
           {billingBusy && <p className="mt-3 text-sm text-gold">{recoveryToast || "Recovering paid training…"}</p>}
+          <button type="button" className={btnGhost+" mt-2 w-full"} onClick={()=>setAudioOpen(v=>!v)} aria-expanded={audioOpen}>Audio Settings</button>
+          {audioOpen && <AudioSettings />}
           <div className="mt-3 text-center"><TipSupport /></div>
         </form>
       </div>
@@ -248,6 +289,10 @@ function PlayScreen() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exitPromptOpen, setExitPromptOpen] = useState(false);
   const [shaking, setShaking] = useState(false);
+  const ambushActive = !!(game && combatOf(game).ambush);
+  useEffect(()=>{
+    setAudioScene(watchingFight || ambushActive ? "combat" : inspectorOpen || empireOpen ? "territory" : "street");
+  },[watchingFight,ambushActive,inspectorOpen,empireOpen]);
   // The native Android Back listener is installed once. Its ref always points
   // at the latest open screen so an already-closed dialog cannot be reopened.
   const backHandler = useRef<() => void>(() => {});
@@ -351,6 +396,7 @@ function PlayScreen() {
         <p className="mt-2 text-sm text-mute">Weekly sales forecast: {money(preview.cash)} · +{Math.round(preview.heat)} heat</p>
         <button type="button" className="combat-opening mt-4" onClick={() => { setSettingsOpen(false); setCombatOpen(true); }}>Black Market & Training</button>
         <button type="button" className="combat-opening" onClick={()=>{setSettingsOpen(false);setEmpireOpen(true);}}>Businesses & Crew</button>
+        <AudioSettings />
         <div className="my-4"><TipSupport /></div>
         <button type="button" className={btnGhost} onClick={() => { void showPrivacyOptions(); }}>Privacy choices</button>
       </Sheet>}
@@ -844,7 +890,7 @@ function LedgerSheet({ game,onEmpire }: { game: GameState;onEmpire:()=>void }) {
           );
         })}
       </ul>
-      <h3 className="mt-4 font-display text-lg tracking-wide">The tape</h3>
+      <h3 className="mt-4 font-display text-lg tracking-wide">The Tape</h3>
       <ul className="mt-2 space-y-1">
         {game.log.slice(0, 18).map((line) => (
           <li key={line.id} className={`text-sm ${toneClass(line.tone)}`}>
