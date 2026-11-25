@@ -180,7 +180,7 @@
 }
 
 /* Character calls and deal book use their own scroll area on small phones. */
-.contact-backdrop { position: fixed; inset: 0; z-index: 50; background: #060e16de; display: flex; align-items: center; justify-content: center; padding: 12px; }
+.contact-backdrop { position: fixed; inset: 0; z-index: 50; background: #060e1673; display: flex; align-items: center; justify-content: center; padding: 12px; }
 .contact-dialog { display: flex; flex-direction: column; width: 100%; max-width: 500px; max-height: 100%; overflow: hidden; border: 1px solid #9e824c; border-radius: 16px; background: #13232c; color: #eee9dc; box-shadow: 0 20px 100px #0009; outline: none; }
 .contact-title { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #35464b; flex-shrink: 0; }
 .contact-title h2 { font-size: 14px; color: #e0b15a; letter-spacing: 2px; font-weight: 700; }
