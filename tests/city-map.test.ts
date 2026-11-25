@@ -75,7 +75,12 @@ assert.equal(bad.ok, false);
 checks.push("Active orders block conflicting gameplay, rewards and duplicate movement orders.");
 
 // Simulate reopening after the order's real-time deadline, with audio unavailable.
-Object.assign(globalThis, { window: {} });
+const mockSaves = new Map<string,string>();
+Object.assign(globalThis, { window: {}, localStorage: {
+  getItem: (key:string) => mockSaves.get(key) ?? null,
+  setItem: (key:string, value:string) => { mockSaves.set(key,value); },
+  removeItem: (key:string) => { mockSaves.delete(key); },
+} });
 useRazor.getState().tickCity();
 assert.equal(cityMapOf(useRazor.getState().game!).locationId, "sinks");
 const completedSave = useRazor.getState().game;

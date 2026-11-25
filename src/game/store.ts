@@ -1,12 +1,12 @@
 import { buyBusiness, upgradeBusiness, recruitSpecialist, supportSpecialist, payOffThreat } from "./empire";
 import { dismissFight } from "./fight-scene";
 import { refreshRegionEvents } from "./world-events";
-import { beginAmbushFight, buyWeapon, combatOf, equipWeapon, resolveAmbush, trainCombat, trainingCost } from "./combat";
+import { beginAmbushFight, buyWeapon, combatOf, levelOf, equipWeapon, resolveAmbush, trainCombat, trainingCost } from "./combat";
 import { creditWallet, spendCredits } from "@/lib/credits";
 import { refreshRegionMarkets, tradeRegion } from "./region-economy";
 import { tickEncounters, decideDeal, deliverDeal, resolveTalk } from "./encounters";
 import { create } from "zustand";
-import { playSound, resumeAudio, setAudioMuted, unlockAudio } from "@/game/audio";
+import { playSound, resumeAudio, setAudioMuted, unlockAudio, type Sound } from "@/game/audio";
 import { continueReport, createGame, endWeek, isGameState, netWorth, refreshDefense, resolveChoice, setSelected } from "@/game/logic";
 import type { GameState, ProductId, StartOpts } from "@/game/types";
 import type { Result } from "@/game/logic";
@@ -14,7 +14,7 @@ import { cityMapOf, completeCityOrder, issueCityOrder } from "@/game/city-map";
 
 import { refreshDistrictNames } from "@/game/content";
 
-const SAVE_KEY = "razor-city-save-v1";
+import { SAVE_KEY, BACKUP_KEY, readSnapshot, writeSnapshot, readArchives, archiveSnapshot, quarantineSnapshot } from "./save-storage";
 const LEGACY_KEY = "razor-city-legacy-v1";
 const MUTE_KEY = "razor-city-muted";
 const TRAINING_JOURNAL = "razor-paid-training-pending-v1";
@@ -40,6 +40,7 @@ interface RazorStore {
   game: GameState | null;
   hasSave: boolean;
   saveMeta: SaveMeta | null;
+  archiveMeta: SaveMeta[];
   legacy: Legacy;
   modal: "none" | "market" | "ledger";
   toast: string | null;
@@ -60,12 +61,13 @@ interface RazorStore {
   resolveAmbush: (choice: "run" | "fight" | "surrender") => void;
   trainCombat: () => Promise<void>;
   boot: () => void;
-  startNew: (opts: StartOpts) => void;
+  startNew: (opts: StartOpts, confirmed?: boolean) => void;
+  restoreArchive: (index: number) => void;
   continueGame: () => void;
   pauseGame: () => void;
   abandon: () => void;
   select: (id: string) => void;
-  commit: (result: Result) => void;
+  commit: (result: Result, audioOverride?: Sound) => void;
   closeWeek: () => void;
   choose: (optionId: string) => void;
   nextWeek: () => void;
@@ -110,32 +112,33 @@ function writeLegacy(legacy: Legacy) {
 }
 
 function persist(game: GameState | null) {
-  try {
-    if (!game) localStorage.removeItem(SAVE_KEY);
-    else localStorage.setItem(SAVE_KEY, JSON.stringify(game));
-    return true;
-  } catch {
-    return false;
-  }
+  try { return writeSnapshot(localStorage,game ? JSON.stringify(game) : null); }
+  catch { return false; }
 }
 
 function metaOf(game: GameState): SaveMeta {
   return { week: game.week, cash: game.cash, crew: game.crew, boss: game.boss, phase: game.phase };
 }
 
-function readSave(): GameState | null {
+function decodeSave(raw:string):GameState|null {
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
-    if (!isGameState(parsed)) return null;
-    const game = { ...parsed, districts: refreshDistrictNames(parsed.districts) };
-    refreshRegionEvents(game);
-    refreshRegionMarkets(game);
-    return game;
-  } catch {
-    return null;
-  }
+    const parsed:unknown=JSON.parse(raw);
+    if(!isGameState(parsed))return null;
+    const game={...parsed,districts:refreshDistrictNames(parsed.districts)};
+    refreshRegionEvents(game);refreshRegionMarkets(game);return game;
+  }catch{return null;}
+}
+function readSave():GameState|null {
+  try{return readSnapshot(localStorage,decodeSave)?.game??null;}catch{return null;}
+}
+function archiveList(){
+  try{return readArchives(localStorage,decodeSave);}catch{return [];}
+}
+function archiveCurrent(game:GameState):boolean {
+  try{return archiveSnapshot(localStorage,JSON.stringify(game),decodeSave);}catch{return false;}
+}
+function hasUnreadableSave():boolean {
+  try{return !!(localStorage.getItem(SAVE_KEY)||localStorage.getItem(BACKUP_KEY))&&!readSave();}catch{return true;}
 }
 
 export const useRazor = create<RazorStore>((set, get) => ({
@@ -144,6 +147,7 @@ export const useRazor = create<RazorStore>((set, get) => ({
   game: null,
   hasSave: false,
   saveMeta: null,
+  archiveMeta: [],
   legacy: emptyLegacy(),
   modal: "none",
   toast: null,
@@ -171,7 +175,10 @@ export const useRazor = create<RazorStore>((set, get) => ({
         });
       }
     } catch { set({ billingBusy: true, toast: "Training recovery needs attention. Your save has been kept." }); }
-    const save = readSave();
+    const snapshot = (()=>{try{return readSnapshot(localStorage,decodeSave);}catch{return null;}})();
+    const save=snapshot?.game??null;
+    if(snapshot?.recovered && save){persist(save);if(!get().billingBusy)set({toast:"Recovered your game from the local backup."});}
+    if(!save && hasUnreadableSave() && !get().billingBusy)set({toast:"Existing save could not be read. It has been kept; restore an archived run if available."});
     let muted = false;
     try {
       muted = localStorage.getItem(MUTE_KEY) === "1";
@@ -184,27 +191,43 @@ export const useRazor = create<RazorStore>((set, get) => ({
       hasSave: !!save,
       saveMeta: save ? metaOf(save) : null,
       legacy: readLegacy(),
+      archiveMeta: archiveList().map(x=>metaOf(x.game)),
       muted,
     });
   },
 
-  startNew: (opts) => {
+  startNew: (opts,confirmed=false) => {
     if (get().billingBusy) return;
+    const previous=readSave();
+    if(hasUnreadableSave()){set({toast:"Existing save is unreadable. It has not been overwritten."});return;}
+    if(previous&&!confirmed){set({toast:"Confirm starting a new game first."});return;}
+    if(previous&&!archiveCurrent(previous)){set({toast:"Could not back up your existing game. New game cancelled."});return;}
     unlockAudio();
     const game = createGame(opts);
+    if(!persist(game)){set({toast:"Could not save your new game. Previous progress retained."});return;}
     const legacy = { ...get().legacy, runs: get().legacy.runs + 1 };
     writeLegacy(legacy);
-    persist(game);
     set({
       screen: "game",
       game,
       hasSave: true,
       saveMeta: metaOf(game),
+      archiveMeta: archiveList().map(x=>metaOf(x.game)),
       legacy,
       modal: "none",
       toast: null,
     });
     playSound("tick");
+  },
+
+  restoreArchive: index=>{
+    if(get().billingBusy||get().screen!=="start")return;
+    const selected=archiveList()[index];if(!selected){set({toast:"Archived game not found."});return;}
+    const current=readSave();
+    if(hasUnreadableSave()){try{if(!quarantineSnapshot(localStorage))throw Error("backup");}catch{set({toast:"Could not preserve unreadable save. Restore cancelled."});return;}}
+    if(current&&!archiveCurrent(current)){set({toast:"Could not preserve the current game. Restore cancelled."});return;}
+    if(!persist(selected.game)){set({toast:"Restore failed. No game was replaced."});return;}
+    set({hasSave:true,saveMeta:metaOf(selected.game),archiveMeta:archiveList().map(x=>metaOf(x.game)),toast:"Archived game restored. Select Continue to play."});
   },
 
   continueGame: () => {
@@ -232,7 +255,7 @@ export const useRazor = create<RazorStore>((set, get) => ({
 
   abandon: () => {
     if (get().billingBusy) return;
-    persist(null);
+    if(!persist(null)){set({toast:"Could not remove your game. Try again."});return;}
     set({ screen: "start", game: null, hasSave: false, saveMeta: null, modal: "none", toast: null });
   },
 
@@ -242,11 +265,11 @@ export const useRazor = create<RazorStore>((set, get) => ({
     if (!game) return;
     const result = setSelected(game, id);
     if (!result.ok) return;
-    persist(result.state);
+    if(!persist(result.state)){set({toast:"Could not save. Try again."});return;}
     set({ game: result.state });
   },
 
-  commit: (result) => {
+  commit: (result, audioOverride) => {
     if (get().billingBusy) { set({ toast: "Please wait for your training payment to finish." }); return; }
     if (get().game && cityMapOf(get().game!).order) {
       set({ toast: "Your crew is carrying out an order. Wait for it to finish." });
@@ -263,6 +286,7 @@ export const useRazor = create<RazorStore>((set, get) => ({
     let legacy = get().legacy;
     const ended = game.phase === "won" || game.phase === "lost";
     const justEnded = ended && prev?.phase !== game.phase;
+    if(!persist(game)){set({toast:"Could not save progress. Action cancelled; try again."});return;}
     if (justEnded) {
       const worth = netWorth(game);
       legacy = {
@@ -273,7 +297,6 @@ export const useRazor = create<RazorStore>((set, get) => ({
       };
       writeLegacy(legacy);
     }
-    persist(game);
     set({
       game,
       legacy,
@@ -283,7 +306,15 @@ export const useRazor = create<RazorStore>((set, get) => ({
       modal: game.phase === "play" ? get().modal : "none",
       pulse: result.fx === "hit" || result.fx === "raid" ? get().pulse + 1 : get().pulse,
     });
-    if (result.fx) playSound(result.fx);
+    if (justEnded) playSound(game.phase === "won" ? "win" : "bad");
+    else if (prev && game.districts.filter(d=>d.owner==="player").length > prev.districts.filter(d=>d.owner==="player").length) playSound("territory");
+    else if (prev && game.crewCounts.muscle+game.crewCounts.dealers > prev.crewCounts.muscle+prev.crewCounts.dealers) playSound("recruit");
+    else if (prev && !cityMapOf(prev).order && cityMapOf(game).order) playSound("travel");
+    else if (prev && !combatOf(prev).ambush && combatOf(game).ambush) playSound("raid");
+    else if (prev && levelOf(game)>levelOf(prev)) playSound("level");
+    else if (prev && prev.phase !== game.phase && game.phase === "summary") playSound("week");
+    else if (audioOverride) playSound(audioOverride);
+    else if (result.fx) playSound(result.fx);
   },
 
   closeWeek: () => {
@@ -318,9 +349,9 @@ export const useRazor = create<RazorStore>((set, get) => ({
       localStorage.setItem(key, "1");
     } catch { /* continue without persistence guard */ }
     const rewarded = { ...game, cash: game.cash + 1000 };
-    persist(rewarded);
+    if(!persist(rewarded)){try{localStorage.removeItem(key);}catch{/* storage unavailable */}set({toast:"Could not save reward. Try again."});return false;}
     set({ game: rewarded, saveMeta: metaOf(rewarded), toast: "$1,000 sponsor bonus added." });
-    playSound("tick");
+    playSound("reward");
     return true;
   },
 
@@ -346,6 +377,7 @@ export const useRazor = create<RazorStore>((set, get) => ({
     // Unlock only inside this synchronous completion, then use normal save/legacy handling.
     set({ game: { ...game, cityMap: { ...cityMapOf(game), order: null } } });
     get().commit(result);
+    if(get().game?.cityMap?.order===null && get().game?.week===game.week && get().toast?.startsWith("Could not save progress"))set({game});
   },
 
   refreshWallet: async () => { try { const wallet = await creditWallet(); set({ premiumBalance: wallet.balance }); } catch { /* earned credits remain usable offline */ } },
@@ -354,8 +386,8 @@ export const useRazor = create<RazorStore>((set, get) => ({
   recruitSpecialist: id => {const g=get().game;if(g)get().commit(recruitSpecialist(g,id));},
   supportSpecialist: id => {const g=get().game;if(g)get().commit(supportSpecialist(g,id));},
   payOffThreat: id => {const g=get().game;if(g)get().commit(payOffThreat(g,id));},
-  showFight: () => {const g=get().game;if(!g?.fightScene||get().billingBusy)return;const s=structuredClone(g);s.fightScene!.dismissed=false;persist(s);set({game:s});},
-  dismissFight: () => {const g=get().game;if(!g||get().billingBusy)return;const r=dismissFight(g);if(r.ok){persist(r.state);set({game:r.state});}},
+  showFight: () => {const g=get().game;if(!g?.fightScene||get().billingBusy)return;const s=structuredClone(g);s.fightScene!.dismissed=false;if(!persist(s)){set({toast:"Could not save. Try again."});return;}set({game:s});},
+  dismissFight: () => {const g=get().game;if(!g||get().billingBusy)return;const r=dismissFight(g);if(r.ok){if(!persist(r.state)){set({toast:"Could not save. Try again."});return;}set({game:r.state});}},
   buyWeapon: id => { const g = get().game; if (g) get().commit(buyWeapon(g, id)); },
   equipWeapon: id => { const g = get().game; if (g) get().commit(equipWeapon(g, id)); },
   resolveAmbush: choice => { const g = get().game; if (g) get().commit(choice==="fight"?beginAmbushFight(g):resolveAmbush(g, choice)); },
@@ -381,15 +413,15 @@ export const useRazor = create<RazorStore>((set, get) => ({
       else set({ billingBusy: true, toast: "Training payment is being recovered. Reopen the game to retry safely." });
     }
   },
-  tradeRegion: (region, product, quantity, side) => { const game = get().game; if (game) get().commit(tradeRegion(game, region, product, quantity, side)); },
+  tradeRegion: (region, product, quantity, side) => { const game = get().game; if (game) { get().commit(tradeRegion(game, region, product, quantity, side),side==="buy"?"buy":"sell"); } },
   tickContacts: () => {
     const game = get().game;
     if (!game || get().billingBusy || combatOf(game).ambush || get().modal !== "none") return;
     const result = tickEncounters(game);
     if (!result?.ok) return;
-    persist(result.state);
+    if(!persist(result.state)){set({toast:"Could not save incoming contact. Try again."});return;}
     set({ game: result.state, saveMeta: metaOf(result.state) });
-    if (result.state.encounters?.pending) playSound("tick");
+    if (result.state.encounters?.pending && !game.encounters?.pending) playSound("deal");
   },
   decideDeal: (id, accept) => { const game = get().game; if (game) get().commit(decideDeal(game, id, accept)); },
   deliverDeal: id => { const game = get().game; if (game) get().commit(deliverDeal(game, id)); },

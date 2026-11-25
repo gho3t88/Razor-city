@@ -6,6 +6,7 @@ try {
   await server.ssrLoadModule("/tests/region-economy.test.ts");
   await server.ssrLoadModule("/tests/combat.test.ts");
   await server.ssrLoadModule("/tests/empire.test.ts");
+  await server.ssrLoadModule("/tests/save-storage.test.ts");
 } finally {
   await server.close();
 }
