@@ -31,3 +31,16 @@ export function archiveSnapshot<T>(io:StorageIO,raw:string,decode:(raw:string)=>
     return true;
   }catch{return false;}
 }
+
+// Preserve unreadable bytes before a player explicitly restores an archived run.
+export const QUARANTINE_KEY="razor-city-unreadable-save-v1";
+export function quarantineSnapshot(io:StorageIO):boolean {
+  try {
+    const prior=io.getItem(QUARANTINE_KEY);
+    const current={primary:io.getItem(SAVE_KEY),mirror:io.getItem(BACKUP_KEY)};
+    const history:unknown=prior?JSON.parse(prior):[];
+    if(!Array.isArray(history))return false;
+    io.setItem(QUARANTINE_KEY,JSON.stringify([current,...history]));
+    return true;
+  }catch{return false;}
+}

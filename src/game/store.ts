@@ -14,7 +14,7 @@ import { cityMapOf, completeCityOrder, issueCityOrder } from "@/game/city-map";
 
 import { refreshDistrictNames } from "@/game/content";
 
-import { SAVE_KEY, BACKUP_KEY, readSnapshot, writeSnapshot, readArchives, archiveSnapshot } from "./save-storage";
+import { SAVE_KEY, BACKUP_KEY, readSnapshot, writeSnapshot, readArchives, archiveSnapshot, quarantineSnapshot } from "./save-storage";
 const LEGACY_KEY = "razor-city-legacy-v1";
 const MUTE_KEY = "razor-city-muted";
 const TRAINING_JOURNAL = "razor-paid-training-pending-v1";
@@ -224,7 +224,7 @@ export const useRazor = create<RazorStore>((set, get) => ({
     if(get().billingBusy||get().screen!=="start")return;
     const selected=archiveList()[index];if(!selected){set({toast:"Archived game not found."});return;}
     const current=readSave();
-    if(hasUnreadableSave()){set({toast:"The unreadable current save is being preserved; recovery needs attention."});return;}
+    if(hasUnreadableSave()){try{if(!quarantineSnapshot(localStorage))throw Error("backup");}catch{set({toast:"Could not preserve unreadable save. Restore cancelled."});return;}}
     if(current&&!archiveCurrent(current)){set({toast:"Could not preserve the current game. Restore cancelled."});return;}
     if(!persist(selected.game)){set({toast:"Restore failed. No game was replaced."});return;}
     set({hasSave:true,saveMeta:metaOf(selected.game),archiveMeta:archiveList().map(x=>metaOf(x.game)),toast:"Archived game restored. Select Continue to play."});

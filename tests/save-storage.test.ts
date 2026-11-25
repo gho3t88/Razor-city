@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {SAVE_KEY,BACKUP_KEY,readSnapshot,writeSnapshot,readArchives,archiveSnapshot} from "../src/game/save-storage";
+import {SAVE_KEY,BACKUP_KEY,readSnapshot,writeSnapshot,readArchives,archiveSnapshot,quarantineSnapshot,QUARANTINE_KEY} from "../src/game/save-storage";
 const records=new Map<string,string>();
 const io={getItem:(k:string)=>records.get(k)??null,setItem:(k:string,v:string)=>{records.set(k,v);},removeItem:(k:string)=>{records.delete(k);}};
 const decode=(raw:string):{week:number;cash:number}|null=>{try{const v=JSON.parse(raw);return Number.isFinite(v.week)&&Number.isFinite(v.cash)?v:null;}catch{return null;}};
@@ -10,7 +10,7 @@ assert.equal(writeSnapshot(io,fresh),true);
 assert.equal(readSnapshot(io,decode)?.game.cash,15400);
 assert.equal(readArchives(io,decode)[0].game.cash,150000);
 assert.equal(io.getItem(BACKUP_KEY),fresh);
-io.setItem(SAVE_KEY,"corrupt");assert.equal(readSnapshot(io,decode)?.recovered,true);
+io.setItem(SAVE_KEY,"corrupt");assert.equal(quarantineSnapshot(io),true);assert.equal(JSON.parse(io.getItem(QUARANTINE_KEY)!)[0].primary,"corrupt");assert.equal(readSnapshot(io,decode)?.recovered,true);
 assert.equal(readSnapshot(io,decode)?.game.cash,15400);
 const failing={...io,setItem:()=>{throw Error("quota");}};
 assert.equal(writeSnapshot(failing,old),false);
