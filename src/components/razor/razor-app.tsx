@@ -142,6 +142,10 @@ function AudioSettings() {
 
 function StartScreen() {
   const startNew = useRazor((s) => s.startNew);
+  const archiveMeta=useRazor(s=>s.archiveMeta);
+  const restoreArchive=useRazor(s=>s.restoreArchive);
+  const [confirmNew,setConfirmNew]=useState(false);
+  const [restoreIndex,setRestoreIndex]=useState<number|null>(null);
   const continueGame = useRazor((s) => s.continueGame);
   const hasSave = useRazor((s) => s.hasSave);
   const saveMeta = useRazor((s) => s.saveMeta);
@@ -191,6 +195,7 @@ function StartScreen() {
           className="w-full max-w-md rounded-xl border border-line bg-panel/95 p-4"
           onSubmit={(e) => {
             e.preventDefault();
+            if(hasSave){setConfirmNew(true);return;}
             startNew({ boss, crew, difficulty });
           }}
         >
@@ -257,7 +262,18 @@ function StartScreen() {
               {saveMeta.phase === "won" ? " · crowned" : saveMeta.phase === "lost" ? " · finished" : ""}
             </button>
           ) : null}
-          {billingBusy && <p className="mt-3 text-sm text-gold">{recoveryToast || "Recovering paid training…"}</p>}
+          {confirmNew && <section role="alertdialog" aria-label="Confirm new game" className="my-3 rounded-md border border-gold bg-ink p-3">
+            <p className="text-paper">Start a new game? Your current run will be archived before starting over.</p>
+            <div className="mt-3 flex gap-2"><button type="button" className={btnGhost} onClick={()=>setConfirmNew(false)}>Cancel</button><button type="button" className={btnGold} onClick={()=>{setConfirmNew(false);startNew({boss,crew,difficulty},true);}}>Archive &amp; start</button></div>
+          </section>}
+          {archiveMeta.length>0 && <details className="mt-3 rounded-md border border-line p-3">
+            <summary className="cursor-pointer text-gold">Recover previous games ({archiveMeta.length})</summary>
+            {archiveMeta.map((m,i)=><div key={i} className="mt-2">
+              <button type="button" disabled={billingBusy} className={btnGhost+" w-full"} onClick={()=>setRestoreIndex(i)}>{m.crew} · Week {m.week} · {money(m.cash)}</button>
+              {restoreIndex===i && <div className="mt-2"><p className="text-sm text-paper">Restore this run? The current run will be archived first.</p><div className="mt-2 flex gap-2"><button type="button" className={btnGhost} onClick={()=>setRestoreIndex(null)}>Cancel</button><button type="button" className={btnGold} onClick={()=>{restoreArchive(i);setRestoreIndex(null);}}>Restore</button></div></div>}
+            </div>)}
+          </details>}
+          {(billingBusy||recoveryToast) && <p role="status" className="mt-3 text-sm text-gold">{recoveryToast || "Recovering paid training…"}</p>}
           <button type="button" className={btnGhost+" mt-2 w-full"} onClick={()=>setAudioOpen(v=>!v)} aria-expanded={audioOpen}>Audio Settings</button>
           {audioOpen && <AudioSettings />}
           <div className="mt-3 text-center"><TipSupport /></div>

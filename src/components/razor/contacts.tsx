@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { CHARACTERS, character, type CharacterId, type Deal } from "@/game/encounters";
 import { PRODUCTS } from "@/game/content";
 import { money } from "@/game/logic";
@@ -7,12 +7,21 @@ import type { GameState } from "@/game/types";
 
 export function ContactDialog({ title, children, close }: { title: string; children: ReactNode; close?: () => void }) {
   const ref = useRef<HTMLElement>(null);
+  const [hudBottom,setHudBottom]=useState(0);
+  useLayoutEffect(()=>{
+    const hud=document.querySelector(".game-stats");
+    const measure=()=>{const bottom=hud?.getBoundingClientRect().bottom??0;setHudBottom(bottom>0&&window.innerHeight-bottom>=220?Math.ceil(bottom):0);};
+    measure();window.addEventListener("resize",measure);
+    const observer=typeof ResizeObserver!=="undefined"&&hud?new ResizeObserver(measure):null;
+    if(observer&&hud)observer.observe(hud);
+    return()=>{window.removeEventListener("resize",measure);observer?.disconnect();};
+  },[]);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     ref.current?.focus();
     return () => previous?.focus();
   }, []);
-  return <div className="contact-backdrop"><section ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} className="contact-dialog" onKeyDown={event => {
+  return <div className="contact-backdrop" style={hudBottom?{paddingTop:hudBottom+12,background:`linear-gradient(to bottom, transparent ${hudBottom}px, #060e16b3 ${hudBottom}px)`}:undefined}><section ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} className="contact-dialog" onKeyDown={event => {
     if (event.key === "Escape" && close) close();
     if (event.key !== "Tab") return;
     const nodes = Array.from(ref.current?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), [tabindex="0"]') ?? []);
@@ -26,14 +35,14 @@ export function CharacterPortrait({ id, large = false }: { id: CharacterId; larg
   const c = character(id);
   return <div role="img" aria-label={`${c.name}, ${c.role}`} className={`contact-portrait ${large ? "large" : ""}`} style={{ backgroundPosition: `${c.tile % 4 / 3 * 100}% ${Math.floor(c.tile / 4) * 100}%`, borderColor: c.color }} />;
 }
-function DealCard({ game, deal: d }: { game: GameState; deal: Deal }) {
+function DealCard({ game, deal: d, hideBuyer=false }: { game: GameState; deal: Deal; hideBuyer?:boolean }) {
   const decide = useRazor(s => s.decideDeal);
   const deliver = useRazor(s => s.deliverDeal);
   const active = d.status === "active";
   const available = Math.min(game.stash[d.product], d.quantity - d.delivered);
   const busy = !!game.cityMap?.order || game.phase !== "play";
   return <article className="deal-card">
-    <div className="contact-person"><CharacterPortrait id={d.buyer} /><div><h3>{character(d.buyer).name}</h3><p>{PRODUCTS[d.product].name} · {d.quantity} units</p></div><span className={`deal-status ${d.status}`}>{d.status}</span></div>
+    <div className="contact-person">{!hideBuyer&&<CharacterPortrait id={d.buyer} />}<div>{!hideBuyer&&<h3>{character(d.buyer).name}</h3>}{hideBuyer?<h3>{PRODUCTS[d.product].name} · {d.quantity} units</h3>:<p>{PRODUCTS[d.product].name} · {d.quantity} units</p>}</div><span className={`deal-status ${d.status}`}>{d.status}</span></div>
     <div className="deal-value"><strong>{money(d.payment)}</strong><span>+ $10,000 completion bonus</span></div>
     <p className="deal-deadline">{active || d.status === "offered" ? `Due by end of week ${d.dueWeek} · ${d.dueWeek - game.week + 1} week${d.dueWeek === game.week ? "" : "s"} left` : d.status === "completed" ? "Paid in full, including bonus" : d.status === "expired" ? "Deadline missed · reserved stock returned" : "Offer declined · no penalty"}</p>
     {(active || d.status === "completed") && <><progress value={d.delivered} max={d.quantity} aria-label={`${d.delivered} of ${d.quantity} units reserved`} /><p className="contact-muted">{d.delivered}/{d.quantity} reserved · {game.stash[d.product]} in stash</p></>}
@@ -61,7 +70,7 @@ export function ContactPopup({ game }: { game: GameState }) {
     const deal = game.encounters?.deals.find(d => d.id === pending.dealId);
     if (!deal || deal.status !== "offered") return null;
     const c = character(deal.buyer);
-    return <ContactDialog title="INCOMING CALL"><div className="incoming-person"><CharacterPortrait id={c.id} large /><div><p className="contact-kicker">BULK BUYER</p><h3>{c.name}</h3><p>{c.role}</p></div></div><blockquote>“{c.line}”</blockquote><DealCard game={game} deal={deal} /><p className="contact-fine">No deposit or penalty for declining. Accepted orders are tracked in Contacts & Deals.</p></ContactDialog>;
+    return <ContactDialog title="INCOMING CALL"><div className="incoming-person"><CharacterPortrait id={c.id} large /><div><p className="contact-kicker">BULK BUYER</p><h3>{c.name}</h3><p>{c.role}</p></div></div><blockquote>“{c.line}”</blockquote><DealCard game={game} deal={deal} hideBuyer /><p className="contact-fine">No deposit or penalty for declining. Accepted orders are tracked in Contacts & Deals.</p></ContactDialog>;
   }
   const talk = pending.talk;
   return <ContactDialog title="CREW CONVERSATION"><p className="contact-kicker">WEEK {game.week} · INSIDE YOUR CREW</p><h3 className="talk-heading">{talk.title}</h3><div className="talk-lines">{talk.lines.map((line, i) => <div key={i} className="talk-line"><CharacterPortrait id={line.speaker} /><div><strong style={{ color: character(line.speaker).color }}>{character(line.speaker).name}</strong><p>{line.text}</p></div></div>)}</div><div className="talk-choices">{talk.choices.map(choice => <button type="button" key={choice.id} disabled={game.cash < choice.cash} onClick={() => reply(choice.id)}><strong>{choice.label}</strong><span>{choice.detail}</span></button>)}</div></ContactDialog>;
